@@ -4,12 +4,16 @@ import * as d3 from 'd3';
 const SIZE = 975;
 const RADIUS = SIZE / 6;
 
+function mathRound(val, decimals) {
+  return parseFloat(val).toFixed(decimals);
+}
+
 interface Data {
   name: string;
   value?: number;
   children?: Data[];
 }
-
+// figure out xy01 to set limits
 export const Graph = ({ data }: { data: Data }) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const [viewBox, setViewBox] = useState('0,0,0,0');
@@ -83,7 +87,9 @@ export const Graph = ({ data }: { data: Data }) => {
         const y = (d.y0 + d.y1) / 2;
         return `rotate(${x - 90}) translate(${y},0) rotate(${x < 180 ? 0 : 180})`;
       })
-      .text((d) => d.data.name);
+      .text(
+        (d) => `Top:${d.y0}-Bottom:${d.y1} Left:${mathRound(d.x0, 2)}-Right:${mathRound(d.x1, 2)}`
+      );
   }, [root]);
 
   return <svg width={SIZE} height={SIZE} viewBox={viewBox} ref={svgRef}></svg>;
