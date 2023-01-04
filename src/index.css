@@ -1,6 +1,10 @@
+svg {
+  dominant-baseline: middle;
+}
 
 text {
-font-family: "Helvetica Neue", Helvetica, sans-serif;
+  font-family: 'Helvetica Neue', Helvetica, sans-serif;
+  text-anchor: middle;
 }
 
 .App {
@@ -10,4 +14,10 @@ font-family: "Helvetica Neue", Helvetica, sans-serif;
 .container {
   height: 100%;
   align-items: center;
+  font-size: 10px;
+}
+
+.sun {
+  height: 100%;
+  width: 100%;
 }

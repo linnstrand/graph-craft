@@ -6,8 +6,8 @@ import * as d3 from 'd3';
 interface Data {
   name: string;
   value?: number;
-  target?: any;
-  current?: any;
+  target?: any; //Partial<d3.HierarchyRectangularNode<Data>>;
+  current?: d3.HierarchyRectangularNode<Data>;
   children?: Data[];
 }
 
@@ -28,27 +28,35 @@ const Container = () => {
 
   const radius = width / 6;
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const partition = (data) => {
       const root = d3
         .hierarchy(data)
         .sum((d) => d.value)
         .sort((a, b) => b.value - a.value);
+      console.log(2 * Math.PI, root.height + 1);
       return d3.partition<Data>().size([2 * Math.PI, root.height + 1])(root);
     };
     const color = d3.scaleOrdinal(d3.quantize(d3.interpolateRainbow, testdata.children.length + 1));
 
+    // node.x0 - the left edge of the rectangle
+    // node.y0 - the top edge of the rectangle
+    // node.x1 - the right edge of the rectangle
+    // node.y1 - the bottom edge of the rectangle
+
+    //for every datum, add a slice to the arc
     const arc = d3
       .arc<d3.HierarchyRectangularNode<Data>>()
       .startAngle((d) => d.x0)
       .endAngle((d) => d.x1)
-      .padAngle((d) => Math.min((d.x1 - d.x0) / 2, 0.005))
+      .padAngle((d) => Math.min((d.x1 - d.x0) / 2, 0.005)) // space between slices
       .padRadius(radius * 1.5)
-      .innerRadius((d) => d.y0 * radius)
-      .outerRadius((d) => Math.max(d.y0 * radius, d.y1 * radius - 1));
+      .innerRadius((d) => d.y0 * radius) //radius for the inside of the circle
+      .outerRadius((d) => Math.max(d.y0 * radius, d.y1 * radius - 1)); // radius for outside
 
     const root = partition(testdata);
     root.each((d) => (d.data.current = d));
+    console.log(root);
 
     function arcVisible(d) {
       return d.y1 <= 3 && d.y0 >= 1 && d.x1 > d.x0;
@@ -68,7 +76,7 @@ const Container = () => {
       .select(ref.current)
       .append('svg')
       .attr('viewBox', [0, 0, width, width])
-      .style('font', '10px sans-serif');
+      .attr('class', 'sun');
 
     const g = svg.append('g').attr('transform', `translate(${width / 2},${width / 2})`);
 
@@ -98,7 +106,7 @@ const Container = () => {
       .selectAll('text')
       .data(root.descendants().slice(1))
       .join('text')
-      .attr('dy', '0.35em')
+      .attr('alignment-baseline', 'middle')
       .attr('fill-opacity', (d) => +labelVisible(d.data.current))
       .attr('transform', (d) => labelTransform(d.data.current))
       .text((d) => d.data.name);
@@ -111,16 +119,22 @@ const Container = () => {
       .attr('pointer-events', 'all')
       .on('click', clicked);
 
-    function clicked(_, p: d3.HierarchyRectangularNode<Data>) {
-      parent.datum(p.parent || root);
-      console.log(p);
+    function clicked(_, clickedArc: d3.HierarchyRectangularNode<Data>) {
+      parent.datum(clickedArc.parent || root);
+
       root.each(
         (d) =>
           (d.data.target = {
-            x0: Math.max(0, Math.min(1, (d.x0 - p.x0) / (p.x1 - p.x0))) * 2 * Math.PI,
-            x1: Math.max(0, Math.min(1, (d.x1 - p.x0) / (p.x1 - p.x0))) * 2 * Math.PI,
-            y0: Math.max(0, d.y0 - p.depth),
-            y1: Math.max(0, d.y1 - p.depth)
+            x0:
+              Math.max(0, Math.min(1, (d.x0 - clickedArc.x0) / (clickedArc.x1 - clickedArc.x0))) *
+              2 *
+              Math.PI,
+            x1:
+              Math.max(0, Math.min(1, (d.x1 - clickedArc.x0) / (clickedArc.x1 - clickedArc.x0))) *
+              2 *
+              Math.PI,
+            y0: Math.max(0, d.y0 - clickedArc.depth),
+            y1: Math.max(0, d.y1 - clickedArc.depth)
           })
       );
 
