@@ -33,7 +33,7 @@ export const Graph = ({ data, size }: { data: Data; size: number }) => {
     setPartition(rings);
   }, [root]);
 
-  React.useLayoutEffect(() => {
+  React.useEffect(() => {
     const arc = d3
       .arc<d3.HierarchyRectangularNode<Data>>()
       .startAngle((d) => d.x0)
@@ -61,14 +61,16 @@ export const Graph = ({ data, size }: { data: Data; size: number }) => {
         return color(d.data.name);
       })
       .attr('fill-opacity', (d) => (d.children ? 0.6 : 0.4))
-      .attr('d', (d) => arc(d));
+      .attr('d', (d) => arc(d))
+      .on('click', clicked);
 
     const center = g
       .append('circle')
       .datum(root)
       .attr('r', size / 6)
       .attr('fill', 'none')
-      .attr('pointer-events', 'all');
+      .attr('pointer-events', 'all')
+      .on('click', clicked);
 
     const label = g
       .append('g')
@@ -83,7 +85,59 @@ export const Graph = ({ data, size }: { data: Data; size: number }) => {
         return `rotate(${x - 90}) translate(${y},0) rotate(${x < 180 ? 0 : 180})`;
       })
       .text((d) => `Y:${d.y1 - d.y0} X:${mathRound(Math.abs(d.x0 - d.x1), 4)}`);
-  }, [root, size]);
+
+    function clicked(_, newParent: d3.HierarchyRectangularNode<Data>) {
+      //const newRoot = root.find((n) => n.value === newParent.value);
+      center.datum(newParent.parent || root);
+      setPartition(
+        newParent
+          .descendants()
+          .filter((d) => d.depth < d.depth + 3)
+          .slice(1)
+      );
+
+      console.log(newParent.children);
+
+      const getTarget = (d: d3.HierarchyRectangularNode<Data>) => {
+        return {
+          ...d,
+          x0:
+            Math.max(0, Math.min(1, (d.x0 - newParent.x0) / (newParent.x1 - newParent.x0))) *
+            2 *
+            Math.PI,
+          x1:
+            Math.max(0, Math.min(1, (d.x1 - newParent.x0) / (newParent.x1 - newParent.x0))) *
+            2 *
+            Math.PI,
+          y0: Math.max(0, d.y0 - newParent.depth),
+          y1: Math.max(0, d.y1 - newParent.depth)
+        };
+      };
+
+      const t = g.transition().duration(750);
+
+      //   path
+      //     .transition(t)
+      //     .tween('data', (d) => {
+      //       const i = d3.interpolate(d.data.current, d.data.target);
+      //       return (t) => (d.data.current = i(t));
+      //     })
+      //     .filter((d) => {
+      //       return Boolean(this.getAttribute('fill-opacity') || arcVisible(d.data.target));
+      //     })
+      //     .attr('fill-opacity', (d) => (arcVisible(d.data.target) ? (d.children ? 0.6 : 0.4) : 0))
+      //     .attr('pointer-events', (d) => (arcVisible(d.data.target) ? 'auto' : 'none'))
+      //     .attrTween('d', (d) => () => arc(d.data.current));
+
+      //   label
+      //     .filter((d) => {
+      //       return Boolean(this.getAttribute('fill-opacity') || labelVisible(d.data.target));
+      //     })
+      //     .transition(t)
+      //     .attr('fill-opacity', (d) => +labelVisible(d.data.target))
+      //     .attrTween('transform', (d) => () => labelTransform(d.data.current));
+    }
+  }, [partition, size]);
 
   return (
     <svg
