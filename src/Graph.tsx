@@ -10,28 +10,33 @@ interface Data {
   value?: number;
   children?: Data[];
 }
+
+interface Slice {
+  current: d3.HierarchyRectangularNode<Data>;
+  target?: d3.HierarchyRectangularNode<Data>;
+}
 // figure out xy01 to set limits
 export const Graph = ({ data, size }: { data: Data; size: number }) => {
   const radius = size / 6;
   const svgRef = useRef<SVGSVGElement>(null);
 
-  const root = useMemo(() => {
+  const partition: Slice = useMemo(() => {
     const h = d3
       .hierarchy(data)
       .sum((d) => d.value)
       .sort((a, b) => b.value - a.value);
-    return d3.partition<Data>().size([2 * Math.PI, h.height + 1])(h);
+    return { current: d3.partition<Data>().size([2 * Math.PI, h.height + 1])(h) };
   }, [data, size]);
 
-  const [partition, setPartition] = useState(root.descendants().slice(1));
+  const [activeRings, setActiveRings] = useState<d3.HierarchyRectangularNode<Data>[] | undefined>();
 
   useEffect(() => {
-    const rings = root
+    const rings = partition.current
       .descendants()
       .filter((d) => d.depth < 3)
       .slice(1);
-    setPartition(rings);
-  }, [root]);
+    setActiveRings(rings);
+  }, [partition]);
 
   React.useEffect(() => {
     const arc = d3
@@ -54,7 +59,7 @@ export const Graph = ({ data, size }: { data: Data; size: number }) => {
     const path = g
       .append('g')
       .selectAll('path')
-      .data(partition)
+      .data(activeRings)
       .join('path')
       .attr('fill', (d) => {
         while (d.depth > 1) d = d.parent;
@@ -66,7 +71,7 @@ export const Graph = ({ data, size }: { data: Data; size: number }) => {
 
     const center = g
       .append('circle')
-      .datum(root)
+      .datum(partition)
       .attr('r', size / 6)
       .attr('fill', 'none')
       .attr('pointer-events', 'all')
@@ -75,7 +80,7 @@ export const Graph = ({ data, size }: { data: Data; size: number }) => {
     const label = g
       .append('g')
       .selectAll('text')
-      .data(partition)
+      .data(activeRings)
       .join('text')
       .attr('font-size', (d) => `${Math.min(((d.y0 + d.y1) / 2) * (d.x1 - d.x0) - 6, 10)}px`)
       .attr('transform', (d: d3.HierarchyRectangularNode<Data>) => {
@@ -88,56 +93,71 @@ export const Graph = ({ data, size }: { data: Data; size: number }) => {
 
     function clicked(_, newParent: d3.HierarchyRectangularNode<Data>) {
       //const newRoot = root.find((n) => n.value === newParent.value);
-      center.datum(newParent.parent || root);
-      setPartition(
+      center.datum(newParent.parent || partition);
+      setActiveRings(
         newParent
           .descendants()
           .filter((d) => d.depth < d.depth + 3)
           .slice(1)
       );
 
-      console.log(newParent.children);
-
-      const getTarget = (d: d3.HierarchyRectangularNode<Data>) => {
-        return {
-          ...d,
-          x0:
-            Math.max(0, Math.min(1, (d.x0 - newParent.x0) / (newParent.x1 - newParent.x0))) *
-            2 *
-            Math.PI,
-          x1:
-            Math.max(0, Math.min(1, (d.x1 - newParent.x0) / (newParent.x1 - newParent.x0))) *
-            2 *
-            Math.PI,
-          y0: Math.max(0, d.y0 - newParent.depth),
-          y1: Math.max(0, d.y1 - newParent.depth)
-        };
+      const slice = {
+        current: partition,
+        target: partition.current.copy().each(
+          (d) =>
+            (d = {
+              ...d,
+              x0:
+                Math.max(0, Math.min(1, (d.x0 - newParent.x0) / (newParent.x1 - newParent.x0))) *
+                2 *
+                Math.PI,
+              x1:
+                Math.max(0, Math.min(1, (d.x1 - newParent.x0) / (newParent.x1 - newParent.x0))) *
+                2 *
+                Math.PI,
+              y0: Math.max(0, d.y0 - newParent.depth),
+              y1: Math.max(0, d.y1 - newParent.depth)
+            })
+        )
       };
 
       const t = g.transition().duration(750);
 
-      //   path
-      //     .transition(t)
-      //     .tween('data', (d) => {
-      //       const i = d3.interpolate(d.data.current, d.data.target);
-      //       return (t) => (d.data.current = i(t));
-      //     })
-      //     .filter((d) => {
-      //       return Boolean(this.getAttribute('fill-opacity') || arcVisible(d.data.target));
-      //     })
-      //     .attr('fill-opacity', (d) => (arcVisible(d.data.target) ? (d.children ? 0.6 : 0.4) : 0))
-      //     .attr('pointer-events', (d) => (arcVisible(d.data.target) ? 'auto' : 'none'))
-      //     .attrTween('d', (d) => () => arc(d.data.current));
+      path
+        .transition(t)
+        .tween('data', (d) => {
+          const i = d3.interpolate(d.current, d.target);
+          return (t) => (d.current = i(t));
+        })
+        .filter((d) => {
+          return Boolean(this.getAttribute('fill-opacity') || arcVisible(d.target));
+        })
+        .attr('fill-opacity', (d) => (arcVisible(d.target) ? (d.children ? 0.6 : 0.4) : 0))
+        .attr('pointer-events', (d) => (arcVisible(d.target) ? 'auto' : 'none'))
+        .attrTween('d', (d) => () => arc(d.current));
 
-      //   label
-      //     .filter((d) => {
-      //       return Boolean(this.getAttribute('fill-opacity') || labelVisible(d.data.target));
-      //     })
-      //     .transition(t)
-      //     .attr('fill-opacity', (d) => +labelVisible(d.data.target))
-      //     .attrTween('transform', (d) => () => labelTransform(d.data.current));
+      label
+        .filter((d) => {
+          return Boolean(this.getAttribute('fill-opacity') || labelVisible(d.target));
+        })
+        .transition(t)
+        .attr('fill-opacity', (d) => +labelVisible(d.target))
+        .attrTween('transform', (d) => () => labelTransform(d.current));
+
+      function arcVisible(d) {
+        return d.y1 <= 3 && d.y0 >= 1 && d.x1 > d.x0;
+      }
+      function labelVisible(d) {
+        return d.y1 <= 3 && d.y0 >= 1 && (d.y1 - d.y0) * (d.x1 - d.x0) > 0.03;
+      }
+
+      function labelTransform(d) {
+        const x = (((d.x0 + d.x1) / 2) * 180) / Math.PI;
+        const y = ((d.y0 + d.y1) / 2) * radius;
+        return `rotate(${x - 90}) translate(${y},0) rotate(${x < 180 ? 0 : 180})`;
+      }
     }
-  }, [partition, size]);
+  }, [activeRings, size]);
 
   return (
     <svg
