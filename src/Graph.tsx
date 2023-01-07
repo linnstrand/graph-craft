@@ -9,29 +9,35 @@ interface Data {
   name: string;
   value?: number;
   children?: Data[];
+  target?: d3.HierarchyRectangularNode<Data>;
+  current?: d3.HierarchyRectangularNode<Data>;
 }
 
-interface Slice {
-  current: d3.HierarchyRectangularNode<Data>;
-  target?: d3.HierarchyRectangularNode<Data>;
-}
-// figure out xy01 to set limits
+//when we get data, create rings
+// when clicked, invisible rings needs to transform to an inner layer.
+// having them invisible: might be too "big" if there's too much data.
+// limit invisible rings to 2. That's all that can be shown.
+
 export const Graph = ({ data, size }: { data: Data; size: number }) => {
   const radius = size / 6;
   const svgRef = useRef<SVGSVGElement>(null);
 
-  const partition: Slice = useMemo(() => {
+  //create the partition from hierarchy and size.
+  const partition: d3.HierarchyRectangularNode<Data> = useMemo(() => {
     const h = d3
       .hierarchy(data)
       .sum((d) => d.value)
       .sort((a, b) => b.value - a.value);
-    return { current: d3.partition<Data>().size([2 * Math.PI, h.height + 1])(h) };
+    const z = d3.partition<Data>().size([2 * Math.PI, h.height + 1])(h);
+    z.each((d) => (d.data.current = d));
+    return z;
   }, [data, size]);
 
   const [activeRings, setActiveRings] = useState<d3.HierarchyRectangularNode<Data>[] | undefined>();
 
+  //this probably doesn't need to be its own effect
   useEffect(() => {
-    const rings = partition.current
+    const rings = partition
       .descendants()
       .filter((d) => d.depth < 3)
       .slice(1);
@@ -39,6 +45,11 @@ export const Graph = ({ data, size }: { data: Data; size: number }) => {
   }, [partition]);
 
   React.useEffect(() => {
+    const activeRings = partition
+      .descendants()
+      .filter((d) => d.depth < 3)
+      .slice(1);
+
     const arc = d3
       .arc<d3.HierarchyRectangularNode<Data>>()
       .startAngle((d) => d.x0)
@@ -94,55 +105,52 @@ export const Graph = ({ data, size }: { data: Data; size: number }) => {
     function clicked(_, newParent: d3.HierarchyRectangularNode<Data>) {
       //const newRoot = root.find((n) => n.value === newParent.value);
       center.datum(newParent.parent || partition);
-      setActiveRings(
-        newParent
-          .descendants()
-          .filter((d) => d.depth < d.depth + 3)
-          .slice(1)
-      );
+      // setActiveRings(
+      //   newParent
+      //     .descendants()
+      //     .filter((d) => d.depth < d.depth + 3)
+      //     .slice(1)
+      // );
 
-      const slice = {
-        current: partition,
-        target: partition.current.copy().each(
-          (d) =>
-            (d = {
-              ...d,
-              x0:
-                Math.max(0, Math.min(1, (d.x0 - newParent.x0) / (newParent.x1 - newParent.x0))) *
-                2 *
-                Math.PI,
-              x1:
-                Math.max(0, Math.min(1, (d.x1 - newParent.x0) / (newParent.x1 - newParent.x0))) *
-                2 *
-                Math.PI,
-              y0: Math.max(0, d.y0 - newParent.depth),
-              y1: Math.max(0, d.y1 - newParent.depth)
-            })
-        )
-      };
+      partition.each(
+        (d) =>
+          (d = {
+            ...d,
+            x0:
+              Math.max(0, Math.min(1, (d.x0 - newParent.x0) / (newParent.x1 - newParent.x0))) *
+              2 *
+              Math.PI,
+            x1:
+              Math.max(0, Math.min(1, (d.x1 - newParent.x0) / (newParent.x1 - newParent.x0))) *
+              2 *
+              Math.PI,
+            y0: Math.max(0, d.y0 - newParent.depth),
+            y1: Math.max(0, d.y1 - newParent.depth)
+          })
+      );
 
       const t = g.transition().duration(750);
 
       path
         .transition(t)
         .tween('data', (d) => {
-          const i = d3.interpolate(d.current, d.target);
-          return (t) => (d.current = i(t));
+          const i = d3.interpolate(d.data.current, d.data.target);
+          return (t) => (d.data.current = i(t));
         })
         .filter((d) => {
-          return Boolean(this.getAttribute('fill-opacity') || arcVisible(d.target));
+          return Boolean(this.getAttribute('fill-opacity') || arcVisible(d.data.target));
         })
-        .attr('fill-opacity', (d) => (arcVisible(d.target) ? (d.children ? 0.6 : 0.4) : 0))
-        .attr('pointer-events', (d) => (arcVisible(d.target) ? 'auto' : 'none'))
-        .attrTween('d', (d) => () => arc(d.current));
+        .attr('fill-opacity', (d) => (arcVisible(d.data.target) ? (d.children ? 0.6 : 0.4) : 0))
+        .attr('pointer-events', (d) => (arcVisible(d.data.target) ? 'auto' : 'none'))
+        .attrTween('d', (d) => () => arc(d.data.current));
 
       label
         .filter((d) => {
-          return Boolean(this.getAttribute('fill-opacity') || labelVisible(d.target));
+          return Boolean(this.getAttribute('fill-opacity') || labelVisible(d.data.target));
         })
         .transition(t)
-        .attr('fill-opacity', (d) => +labelVisible(d.target))
-        .attrTween('transform', (d) => () => labelTransform(d.current));
+        .attr('fill-opacity', (d) => +labelVisible(d.data.target))
+        .attrTween('transform', (d) => () => labelTransform(d.data.current));
 
       function arcVisible(d) {
         return d.y1 <= 3 && d.y0 >= 1 && d.x1 > d.x0;

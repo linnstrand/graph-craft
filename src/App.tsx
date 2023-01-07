@@ -2,6 +2,7 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Graph } from './Graph';
 import testdata from './testdata.json';
 import * as d3 from 'd3';
+import { Graph2 } from './Graph2';
 
 interface Data {
   name: string;
@@ -33,6 +34,7 @@ const Container = () => {
     <>
       <div className="container" ref={ref}>
         <Graph data={testdata} size={size} />
+        <Graph2 data={testdata} size={size} />
       </div>
     </>
   );
