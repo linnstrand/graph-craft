@@ -48,7 +48,7 @@ export const Graph2 = ({ data, size }: { data: Data; size: number }) => {
   useEffect(() => {
     const rings = partition.data.current
       .descendants()
-      .filter((d) => d.depth < 3)
+      .filter((d) => d.depth < 5)
       .slice(1);
     setActiveRings(rings);
   }, [partition]);
@@ -75,7 +75,7 @@ export const Graph2 = ({ data, size }: { data: Data; size: number }) => {
 
     const rings = newRoot.data.current
       .descendants()
-      .filter((d) => d.depth < 3)
+      .filter((d) => d.depth < 5)
       .slice(1);
     setActiveRings(rings);
   };
@@ -93,22 +93,18 @@ export const Graph2 = ({ data, size }: { data: Data; size: number }) => {
           <circle r={size / 6} fill="none" pointerEvents="all"></circle>
           <g>
             {activeRings.map((d, i) => (
-              <path
-                key={`${d.data.name}-${i}`}
-                d={arc(d)}
-                fill={getColor(d)}
-                fillOpacity={d.children ? 0.6 : 0.4}
-                onClick={() => onClick(d)}
-              ></path>
-            ))}
-          </g>
-          <g>
-            {activeRings.map((d, i) => (
-              <text
-                key={`${d.data.name}-${i}`}
-                fontSize={`${Math.min(((d.y0 + d.y1) / 2) * (d.x1 - d.x0) - 6, 10)}px`}
-                transform={getTextTransform(d)}
-              >{`Y:${d.y1 - d.y0} X:${mathRound(Math.abs(d.x0 - d.x1), 4)}`}</text>
+              <React.Fragment key={`p-${d.data.name}-${i}`}>
+                <path
+                  d={arc(d)}
+                  fill={getColor(d)}
+                  fillOpacity={d.children ? 0.6 : 0.4}
+                  onClick={() => onClick(d)}
+                ></path>
+                <text
+                  fontSize={`${Math.min(((d.y0 + d.y1) / 2) * (d.x1 - d.x0) - 6, 10)}px`}
+                  transform={getTextTransform(d)}
+                >{`Y:${d.y1 - d.y0} X:${mathRound(Math.abs(d.x0 - d.x1), 4)}`}</text>
+              </React.Fragment>
             ))}
           </g>
         </g>
@@ -116,3 +112,22 @@ export const Graph2 = ({ data, size }: { data: Data; size: number }) => {
     </svg>
   );
 };
+
+// export default function Arc({ d, i }: {d:any, i:any}) {
+//   return (
+//     <>
+//       <path
+//         key={`p-${d.data.name}-${i}`}
+//         d={arc(d)}
+//         fill={getColor(d)}
+//         fillOpacity={d.children ? 0.6 : 0.4}
+//         onClick={() => onClick(d)}
+//       ></path>
+//       <text
+//         key={`t-${d.data.name}-${i}`}
+//         fontSize={`${Math.min(((d.y0 + d.y1) / 2) * (d.x1 - d.x0) - 6, 10)}px`}
+//         transform={getTextTransform(d)}
+//       >{`Y:${d.y1 - d.y0} X:${mathRound(Math.abs(d.x0 - d.x1), 4)}`}</text>
+//     </>
+//   );
+// }
