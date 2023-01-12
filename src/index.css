@@ -11,7 +11,7 @@ text {
   text-align: center;
 }
 
-.container {
+html {
   height: 100%;
   align-items: center;
   font-size: 12px;
