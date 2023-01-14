@@ -1,12 +1,15 @@
 import * as d3 from 'd3';
 import { tree } from 'd3';
-import React, { useLayoutEffect, useMemo, useRef } from 'react';
+import './tree.css';
+import React, { useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 interface Data {
   name: string;
   value?: number;
   children?: Data[];
 }
+
+const MARGIN = 10;
 
 export const Tree = ({ data, size }: { data: Data; size: number }) => {
   const nodesRef = useRef<SVGSVGElement>(null);
@@ -16,26 +19,24 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
   const root = treeLayout(d3.hierarchy(data));
 
   // Compute the layout.
-  const dx = 10;
-  const dy = size / (root.height + 1);
-  tree().nodeSize([dx, dy])(root);
+  const linkLengthY = size / (root.height + 1);
+  //height of node , length of link
+  tree().nodeSize([MARGIN, linkLengthY])(root);
 
   // Center the tree
-  let x0 = Infinity;
-  let x1 = -x0;
+  let xRight = Infinity;
+  let xLeft = -xRight;
   root.each((d) => {
-    if (d.x > x1) x1 = d.x;
-    if (d.x < x0) x0 = d.x;
+    if (d.x > xLeft) xLeft = d.x;
+    if (d.x < xRight) xRight = d.x;
   });
-
-  const height = x1 - x0 + dx * 2;
 
   const curve = d3.link<any, d3.HierarchyPointNode<Data>>(d3.curveBumpX);
 
   useLayoutEffect(() => {
     d3.select(linesRef.current)
       .selectAll('path')
-      .data(root.links())
+      .data(() => root.links()) // we must use a function to get this to update
       .join('path')
       .attr('fill', 'none')
       .attr('stroke', '#666')
@@ -50,7 +51,7 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
       .selectAll('g')
       .data(root.descendants())
       .join('g')
-      .attr('transform', (d) => `translate(${d.y},${d.x})`);
+      .attr('transform', (d) => `translate(${d.y},${d.x})`); // place nodes at the right place
 
     nodes
       .append('circle')
@@ -73,19 +74,62 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
     };
   }, []);
 
+  const sort1 = () => {
+    const r = root.sort((a, b) => d3.descending(a.height, b.height));
+    d3.select(linesRef.current)
+      .selectAll('path')
+      .data(() => r.links())
+      .transition()
+      .attr(
+        'd',
+        curve.x((d) => d.y).y((d) => d.x)
+      );
+
+    d3.select(nodesRef.current)
+      .selectAll('g')
+      .data(r.descendants())
+      .join('g')
+      .transition()
+      .duration(750)
+      .attr('transform', (d) => `translate(${d.y},${d.x})`); // place nodes at the right place
+  };
+
+  const sort2 = () => {
+    const r = root.sum((d) => d.value).sort((a, b) => b.value - a.value);
+    d3.select(linesRef.current)
+      .selectAll('path')
+      .data(() => r.links())
+      .transition()
+      .attr(
+        'd',
+        curve.x((d) => d.y).y((d) => d.x)
+      );
+
+    d3.select(nodesRef.current)
+      .selectAll('g')
+      .data(r.descendants())
+      .join('g')
+      .transition()
+      .duration(750)
+      .attr('transform', (d) => `translate(${d.y},${d.x})`); // place nodes at the right place
+  };
+
   return (
-    <>
-      <button>test</button>
+    <div className="container">
+      <div className="settings">
+        <button onClick={sort1}>Sort height</button>
+        <button onClick={sort2}>Sort default</button>
+      </div>
       <div className="container">
         <svg
           width={`${size}px`}
-          height={`${height}px`}
-          viewBox={`${(-dy * 1) / 2} ${x0 - dx} ${size} ${height}`}
+          height={`${xLeft - xRight + MARGIN * 2}px`}
+          viewBox={`${-linkLengthY / 2} ${xRight - MARGIN} ${size} ${xLeft - xRight + MARGIN * 2}`}
         >
           <g className="lines" ref={linesRef}></g>
           <g className="nodes" ref={nodesRef}></g>
         </svg>
       </div>
-    </>
+    </div>
   );
 };
