@@ -28,7 +28,7 @@ const Container = () => {
   const data = tree as Data;
   return (
     <>
-      <Tree data={{ ...testdata }} size={size} />
+      <Tree data={{ ...testdata }} size={1200} />
       <Graph data={{ ...testdata }} size={size} />
     </>
   );

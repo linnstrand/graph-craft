@@ -9,7 +9,8 @@ interface Data {
   children?: Data[];
 }
 
-const MARGIN = 10;
+const MARGIN = 11;
+const PADDING = 2;
 
 export const Tree = ({ data, size }: { data: Data; size: number }) => {
   const nodesRef = useRef<SVGSVGElement>(null);
@@ -19,17 +20,25 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
   const root = treeLayout(d3.hierarchy(data));
 
   // Compute the layout.
-  const linkLengthY = size / (root.height + 1);
+  // root height is the greatest distance from any descendant leaf for nodes. "opposite" of depth, but minus 1 as 0 is start.
+  // node size here is distance between depths
+  const linkLengthY = size / (root.height + PADDING);
+
   //height of node , length of link
   tree().nodeSize([MARGIN, linkLengthY])(root);
 
   // Center the tree
-  let xRight = Infinity;
-  let xLeft = -xRight;
+  let distancePositive = Infinity;
+  let distanceNegative = -Infinity;
   root.each((d) => {
-    if (d.x > xLeft) xLeft = d.x;
-    if (d.x < xRight) xRight = d.x;
+    if (d.depth === 4) {
+      console.log(d);
+    }
+    if (d.x > distanceNegative) distanceNegative = d.x;
+    if (d.x < distancePositive) distancePositive = d.x;
   });
+
+  const height = distanceNegative - distancePositive + MARGIN * 2;
 
   const curve = d3.link<any, d3.HierarchyPointNode<Data>>(d3.curveBumpX);
 
@@ -40,6 +49,7 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
       .join('path')
       .attr('fill', 'none')
       .attr('stroke', '#666')
+      .attr('stroke-opacity', 0.6)
       .attr(
         'd',
         curve.x((d) => d.y).y((d) => d.x)
@@ -65,7 +75,7 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
       .attr('paint-order', 'stroke')
       .attr('stroke', '#fff')
       .attr('font-size', 10)
-      .attr('stroke-width', 3)
+      .attr('stroke-width', 4)
       .text((d) => d.data.name);
 
     return () => {
@@ -74,8 +84,7 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
     };
   }, []);
 
-  const sort1 = () => {
-    const r = root.sort((a, b) => d3.descending(a.height, b.height));
+  const sort = (r: d3.HierarchyPointNode<Data>) => {
     d3.select(linesRef.current)
       .selectAll('path')
       .data(() => r.links())
@@ -94,37 +103,25 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
       .attr('transform', (d) => `translate(${d.y},${d.x})`); // place nodes at the right place
   };
 
-  const sort2 = () => {
-    const r = root.sum((d) => d.value).sort((a, b) => b.value - a.value);
-    d3.select(linesRef.current)
-      .selectAll('path')
-      .data(() => r.links())
-      .transition()
-      .attr(
-        'd',
-        curve.x((d) => d.y).y((d) => d.x)
-      );
+  const sortHeight = () => {
+    sort(root.sort((a, b) => d3.descending(a.height, b.height)));
+  };
 
-    d3.select(nodesRef.current)
-      .selectAll('g')
-      .data(r.descendants())
-      .join('g')
-      .transition()
-      .duration(750)
-      .attr('transform', (d) => `translate(${d.y},${d.x})`); // place nodes at the right place
+  const sortValue = () => {
+    sort(root.sum((d) => d.value).sort((a, b) => b.value - a.value));
   };
 
   return (
     <div className="container">
       <div className="settings">
-        <button onClick={sort1}>Sort height</button>
-        <button onClick={sort2}>Sort default</button>
+        <button onClick={sortHeight}>Sort height</button>
+        <button onClick={sortValue}>Sort default</button>
       </div>
       <div className="container">
         <svg
           width={`${size}px`}
-          height={`${xLeft - xRight + MARGIN * 2}px`}
-          viewBox={`${-linkLengthY / 2} ${xRight - MARGIN} ${size} ${xLeft - xRight + MARGIN * 2}`}
+          height={`${height}px`}
+          viewBox={`${(-linkLengthY * PADDING) / 2} ${distancePositive - MARGIN} ${size} ${height}`}
         >
           <g className="lines" ref={linesRef}></g>
           <g className="nodes" ref={nodesRef}></g>
