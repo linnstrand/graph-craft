@@ -4,7 +4,6 @@ svg {
 
 text {
   font-family: 'Helvetica Neue', Helvetica, sans-serif;
-  text-anchor: middle;
 }
 
 .App {
@@ -13,6 +12,4 @@ text {
 
 html {
   height: 100%;
-  align-items: center;
-  font-size: 12px;
 }

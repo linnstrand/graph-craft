@@ -1,179 +1,158 @@
-import React, { useMemo, useRef, useState, useEffect } from 'react';
+import { useMemo, useRef, useLayoutEffect } from 'react';
 import * as d3 from 'd3';
-
-function mathRound(val, decimals) {
-  return parseFloat(val).toFixed(decimals);
-}
 
 interface Data {
   name: string;
   value?: number;
-  children?: Data[];
-  target?: d3.HierarchyRectangularNode<Data>;
+  target?: any; //Partial<d3.HierarchyRectangularNode<Data>>;
   current?: d3.HierarchyRectangularNode<Data>;
+  children?: Data[];
 }
 
-//when we get data, create rings
-// when clicked, invisible rings needs to transform to an inner layer.
-// having them invisible: might be too "big" if there's too much data.
-// limit invisible rings to 2. That's all that can be shown.
-
 export const Graph = ({ data, size }: { data: Data; size: number }) => {
-  const radius = size / 6;
-  const svgRef = useRef<SVGSVGElement>(null);
+  const ref = useRef<SVGSVGElement>(null);
+  const width = size;
 
-  //create the partition from hierarchy and size.
-  const partition: d3.HierarchyRectangularNode<Data> = useMemo(() => {
-    const h = d3
+  const radius = width / 6;
+
+  const root: d3.HierarchyRectangularNode<Data> = useMemo(() => {
+    const p = d3
       .hierarchy(data)
       .sum((d) => d.value)
       .sort((a, b) => b.value - a.value);
-    const z = d3.partition<Data>().size([2 * Math.PI, h.height + 1])(h);
-    z.each((d) => (d.data.current = d));
-    return z;
+    const r = d3.partition<Data>().size([2 * Math.PI, p.height + 1])(p);
+    return r.each((d) => (d.data.current = d));
   }, [data, size]);
 
-  const [activeRings, setActiveRings] = useState<d3.HierarchyRectangularNode<Data>[] | undefined>();
+  //for every datum, add a slice to the arc
+  const arc = d3
+    .arc<d3.HierarchyRectangularNode<Data>>()
+    .startAngle((d) => d.x0)
+    .endAngle((d) => d.x1)
+    .padAngle((d) => Math.min((d.x1 - d.x0) / 2, 0.005)) // space between slices
+    .padRadius(radius * 1.5)
+    .innerRadius((d) => d.y0 * radius) //radius for the inside of the circle
+    .outerRadius((d) => Math.max(d.y0 * radius, d.y1 * radius - 1)); // radius for outside
 
-  //this probably doesn't need to be its own effect
-  useEffect(() => {
-    const rings = partition
-      .descendants()
-      .filter((d) => d.depth < 3)
-      .slice(1);
-    setActiveRings(rings);
-  }, [partition]);
+  function arcVisible(d) {
+    return d.y1 <= 3 && d.y0 >= 1 && d.x1 > d.x0;
+  }
 
-  React.useEffect(() => {
-    const activeRings = partition
-      .descendants()
-      .filter((d) => d.depth < 3)
-      .slice(1);
+  function labelVisible(d) {
+    return d.y1 <= 3 && d.y0 >= 1 && (d.y1 - d.y0) * (d.x1 - d.x0) > 0.03;
+  }
 
-    const arc = d3
-      .arc<d3.HierarchyRectangularNode<Data>>()
-      .startAngle((d) => d.x0)
-      .endAngle((d) => d.x1)
-      .padAngle((d) => Math.min((d.x1 - d.x0) / 2, 0.005))
-      .padRadius(radius * 1.5)
-      .innerRadius((d) => d.y0 * radius)
-      .outerRadius((d) => Math.max(d.y0 * radius, d.y1 * radius - 1));
+  function labelTransform(d) {
+    const x = (((d.x0 + d.x1) / 2) * 180) / Math.PI; //180
+    const y = ((d.y0 + d.y1) / 2) * radius; // translate 80, rotate 180
 
+    // clockwise, distance, spin
+    return `rotate(${x - 90}) translate(${y},0) rotate(${x < 180 ? 0 : 180})`;
+  }
+
+  useLayoutEffect(() => {
     const color = d3.scaleOrdinal(d3.quantize(d3.interpolateRainbow, data.children.length + 1));
 
-    if (!svgRef.current) return;
-    svgRef.current.innerHTML = '';
-    const svg = d3.select(svgRef.current);
-
-    const g = svg.append('g').attr('transform', `translate(${size / 2},${size / 2})`);
+    const g = d3
+      .select(ref.current)
+      .append('g')
+      .attr('transform', `translate(${width / 2},${width / 2})`);
 
     const path = g
       .append('g')
       .selectAll('path')
-      .data(activeRings)
+      .data(root.descendants().slice(1))
       .join('path')
       .attr('fill', (d) => {
         while (d.depth > 1) d = d.parent;
         return color(d.data.name);
       })
-      .attr('fill-opacity', (d) => (d.children ? 0.6 : 0.4))
-      .attr('d', (d) => arc(d))
-      .on('click', clicked);
+      .attr('fill-opacity', (d) => (arcVisible(d.data.current) ? (d.children ? 0.6 : 0.4) : 0))
+      .attr('pointer-events', (d) => (arcVisible(d.data.current) ? 'auto' : 'none'))
+      .attr('d', (d) => arc(d.data.current));
 
-    const center = g
-      .append('circle')
-      .datum(partition)
-      .attr('r', size / 6)
-      .attr('fill', 'none')
-      .attr('pointer-events', 'all')
-      .on('click', clicked);
+    path
+      .filter((d) => Boolean(d.children))
+      .style('cursor', 'pointer')
+      .on('click', (e, p) => clicked(p, parent, g, path, label));
 
     const label = g
       .append('g')
+      .attr('pointer-events', 'none')
+      .attr('text-anchor', 'middle')
+      .style('user-select', 'none')
       .selectAll('text')
-      .data(activeRings)
+      .data(root.descendants().slice(1))
       .join('text')
-      .attr('font-size', (d) => `${Math.min(((d.y0 + d.y1) / 2) * (d.x1 - d.x0) - 6, 10)}px`)
-      .attr('transform', (d: d3.HierarchyRectangularNode<Data>) => {
-        if (!d.depth || !d.data.name) return;
-        const x = (((d.x0 + d.x1) / 2) * 180) / Math.PI;
-        const y = ((d.y0 + d.y1) / 2) * radius;
-        return `rotate(${x - 90}) translate(${y},0) rotate(${x < 180 ? 0 : 180})`;
+      .attr('font-size', (d) => `${Math.min(Math.round((d.x1 - d.x0) * radius + 2), 16)}px`)
+      .attr('fill-opacity', (d) => +labelVisible(d.data.current))
+      .attr('transform', (d) => labelTransform(d.data.current))
+      .text((d) => d.data.name);
+
+    const parent = g
+      .append('circle')
+      .datum(root)
+      .attr('r', radius)
+      .attr('fill', 'none')
+      .attr('pointer-events', 'all')
+      .on('click', (_, p) => clicked(p, parent, g, path, label));
+
+    return () => {
+      ref.current.innerHTML = '';
+    };
+  }, []);
+
+  function clicked(p, parent, g, path, label) {
+    // p is the clicked element
+    // parent of the clicked node should be center
+    // parent.datum(p.parent || root);
+
+    // for x: we are building left and right curve from the clicked element.
+    // It needs to grow to fill the same percantage of the parent.
+    // multiply by 2 to get diameter instead of .
+    // for y:we need to substract the depth of the clicked element for new y.
+    root.each(
+      (d) =>
+        (d.data.target = {
+          x0: Math.max(0, Math.min(1, (d.x0 - p.x0) / (p.x1 - p.x0))) * 2 * Math.PI,
+          x1: Math.max(0, Math.min(1, (d.x1 - p.x0) / (p.x1 - p.x0))) * 2 * Math.PI,
+          y0: Math.max(0, d.y0 - p.depth),
+          y1: Math.max(0, d.y1 - p.depth)
+        })
+    );
+
+    const t = g.transition().duration(750);
+    path
+      .transition(t)
+      .tween('animated-slices', (d) => {
+        const i = d3.interpolate(d.data.current, d.data.target);
+        return (time) => (d.data.current = i(time));
       })
-      .text((d) => `Y:${d.y1 - d.y0} X:${mathRound(Math.abs(d.x0 - d.x1), 4)}`);
+      .attr('fill-opacity', (d) => (arcVisible(d.data.target) ? (d.children ? 0.6 : 0.4) : 0))
+      .attr('pointer-events', (d) => (arcVisible(d.data.target) ? 'auto' : 'none'))
+      .attrTween('d', (d) => () => arc(d.data.current));
 
-    function clicked(_, newParent: d3.HierarchyRectangularNode<Data>) {
-      //const newRoot = root.find((n) => n.value === newParent.value);
-      center.datum(newParent.parent || partition);
-      // setActiveRings(
-      //   newParent
-      //     .descendants()
-      //     .filter((d) => d.depth < d.depth + 3)
-      //     .slice(1)
-      // );
-
-      partition.each(
-        (d) =>
-          (d = {
-            ...d,
-            x0:
-              Math.max(0, Math.min(1, (d.x0 - newParent.x0) / (newParent.x1 - newParent.x0))) *
-              2 *
-              Math.PI,
-            x1:
-              Math.max(0, Math.min(1, (d.x1 - newParent.x0) / (newParent.x1 - newParent.x0))) *
-              2 *
-              Math.PI,
-            y0: Math.max(0, d.y0 - newParent.depth),
-            y1: Math.max(0, d.y1 - newParent.depth)
-          })
-      );
-
-      const t = g.transition().duration(750);
-
-      path
-        .transition(t)
-        .tween('data', (d) => {
-          const i = d3.interpolate(d.data.current, d.data.target);
-          return (t) => (d.data.current = i(t));
-        })
-        .filter((d) => {
-          return Boolean(this.getAttribute('fill-opacity') || arcVisible(d.data.target));
-        })
-        .attr('fill-opacity', (d) => (arcVisible(d.data.target) ? (d.children ? 0.6 : 0.4) : 0))
-        .attr('pointer-events', (d) => (arcVisible(d.data.target) ? 'auto' : 'none'))
-        .attrTween('d', (d) => () => arc(d.data.current));
-
-      label
-        .filter((d) => {
-          return Boolean(this.getAttribute('fill-opacity') || labelVisible(d.data.target));
-        })
-        .transition(t)
-        .attr('fill-opacity', (d) => +labelVisible(d.data.target))
-        .attrTween('transform', (d) => () => labelTransform(d.data.current));
-
-      function arcVisible(d) {
-        return d.y1 <= 3 && d.y0 >= 1 && d.x1 > d.x0;
-      }
-      function labelVisible(d) {
-        return d.y1 <= 3 && d.y0 >= 1 && (d.y1 - d.y0) * (d.x1 - d.x0) > 0.03;
-      }
-
-      function labelTransform(d) {
-        const x = (((d.x0 + d.x1) / 2) * 180) / Math.PI;
-        const y = ((d.y0 + d.y1) / 2) * radius;
-        return `rotate(${x - 90}) translate(${y},0) rotate(${x < 180 ? 0 : 180})`;
-      }
-    }
-  }, [activeRings, size]);
+    label
+      .transition(t)
+      .attr(
+        'font-size',
+        (d) => `${Math.min(Math.round((d.data.target.x1 - d.data.target.x0) * radius + 2), 14)}px`
+      )
+      .attr('fill-opacity', (d) => +labelVisible(d.data.target))
+      .attrTween('transform', (d) => () => labelTransform(d.data.current));
+    //.attrTween('transform', (d) => () => labelTransform(d.data.current));
+  }
 
   return (
-    <svg
-      width="100%"
-      height="100%"
-      viewBox={`0 0 ${size} ${size}`}
-      ref={svgRef}
-      preserveAspectRatio="xMidYMid"
-    ></svg>
+    <>
+      <div className="container">
+        <svg
+          width={`${size}px`}
+          height={`${size}px`}
+          viewBox={`0 0 ${size} ${size}`}
+          ref={ref}
+        ></svg>
+      </div>
+    </>
   );
 };
