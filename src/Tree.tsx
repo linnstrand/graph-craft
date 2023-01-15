@@ -1,5 +1,4 @@
 import * as d3 from 'd3';
-import { tree } from 'd3';
 import './tree.css';
 import { useLayoutEffect, useRef, useState } from 'react';
 
@@ -8,37 +7,48 @@ interface Data {
   value?: number;
   children?: Data[];
 }
+type LayoutT = 'tidy' | 'radial';
+interface GraphLayout {
+  variant: LayoutT;
+  transform: (d: d3.HierarchyPointNode<Data>) => string;
+  link:
+    | d3.Link<unknown, unknown, d3.HierarchyPointNode<Data>>
+    | d3.LinkRadial<unknown, unknown, d3.HierarchyPointNode<Data>>;
+}
 
 const MARGIN = 11;
 const PADDING = 2;
-
-type LayoutT = 'tidy' | 'radial';
 
 export const Tree = ({ data, size }: { data: Data; size: number }) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const nodesRef = useRef<SVGSVGElement>(null);
   const linesRef = useRef<SVGSVGElement>(null);
 
-  const [layoutType, setLayoutType] = useState<LayoutT>('tidy');
+  const [layoutType, setLayoutType] = useState<LayoutT | null>(null);
 
-  const treeLayout = d3.tree<Data>().size([size, size]);
-  const root = treeLayout(d3.hierarchy(data));
+  const [root, setRoot] = useState<d3.HierarchyPointNode<Data | null>>(null);
 
-  const curve = d3.link<any, d3.HierarchyPointNode<Data>>(d3.curveBumpX);
+  const curve = d3.link<unknown, d3.HierarchyPointNode<Data>>(d3.curveBumpX);
 
-  const tidyTree = curve.x((d) => d.y).y((d) => d.x);
-  const radial = d3
-    .linkRadial<any, d3.HierarchyPointNode<Data>>()
-    .angle((d) => d.x)
-    .radius((d) => d.y);
+  const tidyTree = {
+    variant: 'tidy',
+    transform: (d) => `translate(${d.y},${d.x})`,
+    link: curve.x((d) => d.y).y((d) => d.x)
+  };
 
-  const tidyTransform = (d) => `translate(${d.y},${d.x})`;
-  const radialTransform = (d) => `rotate(${(d.x * 180) / Math.PI - 90}) translate(${d.y},0)`;
+  const radialTree: GraphLayout = {
+    variant: 'radial',
+    transform: (d) => `rotate(${(d.x * 180) / Math.PI - 90}) translate(${d.y},0)`,
+    link: d3
+      .linkRadial<unknown, d3.HierarchyPointNode<Data>>()
+      .angle((d) => d.x)
+      .radius((d) => d.y)
+  };
 
-  const setLinks = (d) => {
+  const createLinks = (d, links: d3.HierarchyPointLink<Data>[]) => {
     d3.select(linesRef.current)
       .selectAll('path')
-      .data(() => root.links()) // we must use a function to get this to update
+      .data(() => links) // we must use a function to get this to update
       .join('path')
       .attr('fill', 'none')
       .attr('stroke', '#666')
@@ -47,11 +57,21 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
       .attr('stroke-width', 1);
   };
 
-  const setNodes = (t) => {
+  const setLines = (pathFn, links: d3.HierarchyPointLink<Data>[]) => {
+    d3.select(linesRef.current)
+      .selectAll('path')
+      .data(() => links)
+      .join('path')
+      .transition()
+      .duration(750)
+      .attr('d', pathFn);
+  };
+
+  const createNodes = (t, data: d3.HierarchyPointNode<Data>[]) => {
     const nodes = d3
       .select(nodesRef.current)
       .selectAll('g')
-      .data(root.descendants())
+      .data(data)
       .join('g')
       .attr('transform', t); // place nodes at the right place
 
@@ -71,15 +91,28 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
       .text((d) => d.data.name);
   };
 
+  const setNodes = (transformFn, data: d3.HierarchyPointNode<Data>[]) => {
+    d3.select(nodesRef.current)
+      .selectAll('g')
+      .data(data)
+      .join('g')
+      .transition()
+      .duration(750)
+      .attr('transform', transformFn); // place nodes at the right place
+  };
+
   const setTree = () => {
-    setLayoutType('tidy');
     // Compute the layout.
     // root height is the greatest distance from any descendant leaf for nodes. "opposite" of depth, but minus 1 as 0 is start.
     // node size here is distance between depths
-    const linkLengthY = size / (root.height + PADDING);
 
+    const treeLayout = d3.tree<Data>().size([size, size]);
+    const root: d3.HierarchyPointNode<Data> = treeLayout(d3.hierarchy(data));
+    setRoot(root);
+    const linkLengthY = size / (root.height + PADDING);
     //height of node , length of link
-    tree().nodeSize([MARGIN, linkLengthY])(root);
+
+    treeLayout.nodeSize([MARGIN, linkLengthY])(root);
 
     // Center the tree
     let distancePositive = Infinity;
@@ -95,12 +128,46 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
       .attr('viewBox', [(-linkLengthY * PADDING) / 2, distancePositive - MARGIN, size, height])
       .attr('width', size)
       .attr('height', height);
+
+    if (!layoutType) {
+      createLinks(tidyTree.link, root.links());
+      createNodes(tidyTree.transform, root.descendants());
+    }
+    setLines(tidyTree.link, root.links());
+    setNodes(tidyTree.transform, root.descendants());
+    setLayoutType('tidy');
+    return root;
+  };
+
+  const setLayoutRadial = () => {
+    const radius = (size - 60 * 2) / 2;
+
+    const treeLayout = d3
+      .tree<Data>()
+      .size([2 * Math.PI, radius])
+      .separation((a, b) => (a.parent == b.parent ? 1 : 2) / a.depth);
+
+    const root = treeLayout(d3.hierarchy(data));
+    setRoot(root);
+    d3.select(svgRef.current)
+      .attr('viewBox', [-60 - radius, -60 - radius, size, size])
+      .attr('width', size)
+      .attr('height', size);
+
+    if (!layoutType) {
+      createLinks(radialTree.link, root.links());
+      createNodes(radialTree.transform, root.descendants());
+    }
+
+    setLines(radialTree.link, root.links());
+    setNodes(radialTree.transform, root.descendants());
+    setLayoutType('radial');
   };
 
   useLayoutEffect(() => {
+    if (layoutType) return;
     setTree();
-    setLinks(tidyTree);
-    setNodes(tidyTransform);
+    //setLayoutRadial();
 
     return () => {
       linesRef.current.innerHTML = '';
@@ -108,77 +175,35 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
     };
   }, []);
 
-  const sort = (r: d3.HierarchyPointNode<Data>) => {
+  const getLayoutTypeF = (): GraphLayout => {
     let l;
     switch (layoutType) {
       case 'tidy':
-        setTree();
-        l = { d: tidyTree, t: tidyTransform };
+        l = tidyTree;
         break;
       case 'radial':
-        setRadial();
-        l = { d: radial, t: radialTransform };
+        l = radialTree;
         break;
       default:
-        l = { d: radial, t: radialTransform };
+        l = tidyTree;
     }
-
-    d3.select(linesRef.current)
-      .selectAll('path')
-      .data(() => r.links())
-      .join('path')
-      .transition()
-      .duration(750)
-      .attr('d', l.d);
-
-    d3.select(nodesRef.current)
-      .selectAll('g')
-      .data(r.descendants())
-      .join('g')
-      .transition()
-      .duration(750)
-      .attr('transform', l.t); // place nodes at the right place
+    return l;
   };
 
-  const setRadial = () => {
-    setLayoutType('radial');
-    const radius = (size - 60 * 2) / 2;
-
-    tree()
-      .size([2 * Math.PI, radius])
-      .separation((a, b) => (a.parent == b.parent ? 1 : 2) / a.depth)(root);
-
-    d3.select(svgRef.current)
-      .attr('viewBox', [-60 - radius, -60 - radius, size, size])
-      .attr('width', size)
-      .attr('height', size);
-  };
-
-  const changeLayout = () => {
-    setRadial();
-
-    d3.select(linesRef.current)
-      .selectAll('path')
-      .data(() => root.links())
-      .join('path')
-      .transition()
-      .duration(750)
-      .attr('d', radial);
-
-    d3.select(nodesRef.current)
-      .selectAll('g')
-      .data(root.descendants())
-      .join('g')
-      .transition()
-      .duration(750)
-      .attr('transform', radialTransform);
-  };
   const sortHeight = () => {
-    sort(root.sort((a, b) => d3.descending(a.height, b.height)));
+    //tree
+    const l = getLayoutTypeF();
+    root.sort((a, b) => d3.descending(a.height, b.height));
+    setLines(l.link, root.links());
+    setNodes(l.transform, root.descendants());
   };
 
   const sortValue = () => {
-    sort(root.sum((d) => d.value).sort((a, b) => b.value - a.value));
+    // tree
+    const l = getLayoutTypeF();
+    root.sum((d) => d.value).sort((a, b) => b.value - a.value);
+    setLines(l.link, root.links());
+    setNodes(l.transform, root.descendants());
   };
 
   return (
@@ -186,7 +211,8 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
       <div className="settings">
         <button onClick={sortHeight}>Sort height</button>
         <button onClick={sortValue}>Sort default</button>
-        <button onClick={changeLayout}>changeLayout</button>
+        <button onClick={setLayoutRadial}>layoutRadial</button>
+        <button onClick={setTree}>layoutTree</button>
       </div>
       <div className="container">
         <svg ref={svgRef}>

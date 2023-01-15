@@ -29,7 +29,7 @@ const Container = () => {
   return (
     <>
       <Tree data={{ ...testdata }} size={1200} />
-      <Graph data={{ ...testdata }} size={size} />
+      {/* <Graph data={{ ...testdata }} size={size} /> */}
     </>
   );
 };
