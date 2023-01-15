@@ -8,7 +8,6 @@ interface Data {
   children?: Data[];
 }
 type LayoutT = 'tidy' | 'radial';
-
 interface GraphLayout {
   variant: LayoutT;
   transform: (d: d3.HierarchyPointNode<Data>) => string;
@@ -168,11 +167,6 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
   useLayoutEffect(() => {
     if (layoutType) return;
     setTree();
-
-    // return () => {
-    //   linesRef.current.innerHTML = '';
-    //   nodesRef.current.innerHTML = '';
-    // };
   }, []);
 
   const getLayoutTypeF = (): GraphLayout => {
