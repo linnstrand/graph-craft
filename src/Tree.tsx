@@ -63,6 +63,7 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
     nodesRef.current.innerHTML = '';
     const nodes = d3
       .select(nodesRef.current)
+      .attr('transform', `translate(${size / 2 + 75},${size / 2 + 75})`)
       .selectAll('g')
       .data(data)
       .join('g')
@@ -132,12 +133,9 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
     const t = d3.select(nodesRef.current).select('g:first-child').node() as SVGGraphicsElement;
     const firstElem = Math.floor(t.getBBox().x);
     const svg = d3.select(svgRef.current);
-    svg
-      .attr('height', () => height)
-      .transition()
-      .duration(750);
+    svg.attr('height', () => height);
 
-    svg.attr('viewBox', () => [firstElem - MARGIN, x0 - MARGIN, size, height]);
+    svg.attr('viewBox', () => [0, 0, size, height]);
 
     setLines(tidyTree.link, root.links());
     setNodes(tidyTree.transform, root.descendants());
@@ -148,7 +146,7 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
   };
 
   const setLayoutRadial = () => {
-    const radius = (size - 60 * 2) / 2;
+    const radius = size / 2;
 
     const treeLayout = d3
       .tree<Data>()
@@ -163,16 +161,8 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
     }
 
     const svg = d3.select(svgRef.current);
-    svg
-      .attr('height', () => size)
-      .transition()
-      .duration(750);
-    svg.attr('viewBox', () => [
-      -radius - nodeLength - MARGIN,
-      -radius - nodeLength - MARGIN,
-      size,
-      size
-    ]);
+    svg.attr('height', () => size);
+    svg.attr('viewBox', () => [0, 0, size + 60, size]);
 
     setLines(radialTree.link, root.links());
     setNodes(radialTree.transform, root.descendants());
@@ -186,6 +176,7 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
     const svg = d3.select(svgRef.current);
     svg.attr('width', size).attr('height', 0).transition().duration(750);
     d3.select(linesRef.current)
+      .attr('transform', `translate(${size / 2 + 75},${size / 2 + 75})`)
       .attr('fill', 'none')
       .attr('stroke', '#666')
       .attr('stroke-opacity', 0.6)
