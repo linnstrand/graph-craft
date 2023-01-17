@@ -48,18 +48,6 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
       .radius((d) => d.y)
   };
 
-  const createLinks = (d, links: d3.HierarchyPointLink<Data>[]) => {
-    d3.select(linesRef.current)
-      .selectAll('path')
-      .data(() => links) // we must use a function to get this to update
-      .join('path')
-      .attr('fill', 'none')
-      .attr('stroke', '#666')
-      .attr('stroke-opacity', 0.6)
-      .attr('d', d)
-      .attr('stroke-width', 1);
-  };
-
   const setLines = (pathFn, links: d3.HierarchyPointLink<Data>[]) => {
     d3.select(linesRef.current)
       .selectAll('path')
@@ -104,7 +92,7 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
   const setNodes = (transformFn, data: d3.HierarchyPointNode<Data>[]) => {
     d3.select(nodesRef.current)
       .selectAll('g')
-      .data(data)
+      .data(() => data)
       .join('g')
       .transition()
       .duration(750)
@@ -135,23 +123,22 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
 
     let nodeLength = labelLength;
     if (!layoutType) {
-      createLinks(tidyTree.link, root.links());
       nodeLength = createNodes(tidyTree.transform, root.descendants());
     }
     setLabelLength(nodeLength);
     const height = x1 - x0 + MARGIN * 2;
+    treeLayout.nodeSize([MARGIN, size / root.height - nodeLength / 2])(root);
 
     const t = d3.select(nodesRef.current).select('g:first-child').node() as SVGGraphicsElement;
     const firstElem = Math.floor(t.getBBox().x);
-
-    d3.select(svgRef.current)
-      .attr('viewBox', [firstElem - MARGIN - PADDING, x0 - MARGIN, size, height])
-      .attr('width', size)
-      .attr('height', height)
+    const svg = d3.select(svgRef.current);
+    svg
+      .attr('height', () => height)
       .transition()
       .duration(750);
 
-    treeLayout.nodeSize([MARGIN, size / root.height - nodeLength / 2])(root);
+    svg.attr('viewBox', () => [firstElem - MARGIN, x0 - MARGIN, size, height]);
+
     setLines(tidyTree.link, root.links());
     setNodes(tidyTree.transform, root.descendants());
 
@@ -170,28 +157,41 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
 
     const root = treeLayout(d3.hierarchy(data));
 
+    let nodeLength = labelLength;
     if (!layoutType) {
-      createLinks(radialTree.link, root.links());
-      createNodes(radialTree.transform, root.descendants());
+      nodeLength = createNodes(radialTree.transform, root.descendants());
     }
 
-    d3.select(svgRef.current)
-      .attr('viewBox', [-radius - labelLength - MARGIN, -radius - labelLength - MARGIN, size, size])
-      .attr('width', size)
-      .attr('height', size)
+    const svg = d3.select(svgRef.current);
+    svg
+      .attr('height', () => size)
       .transition()
       .duration(750);
+    svg.attr('viewBox', () => [
+      -radius - nodeLength - MARGIN,
+      -radius - nodeLength - MARGIN,
+      size,
+      size
+    ]);
 
     setLines(radialTree.link, root.links());
     setNodes(radialTree.transform, root.descendants());
-
+    setLabelLength(nodeLength);
     setRoot(root);
     setLayoutType('radial');
   };
 
   useLayoutEffect(() => {
     if (layoutType) return;
-    // setTree();
+    const svg = d3.select(svgRef.current);
+    svg.attr('width', size).attr('height', 0).transition().duration(750);
+    d3.select(linesRef.current)
+      .attr('fill', 'none')
+      .attr('stroke', '#666')
+      .attr('stroke-opacity', 0.6)
+      .attr('stroke-width', 1);
+
+    //setTree();
     setLayoutRadial();
   }, []);
 
