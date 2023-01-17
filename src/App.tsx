@@ -1,5 +1,4 @@
-import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Graph } from './Graph';
+import { useState } from 'react';
 import testdata from './testdata.json';
 import tree from './tree.json';
 import * as d3 from 'd3';
@@ -28,7 +27,7 @@ const Container = () => {
   const data = tree as Data;
   return (
     <>
-      <Tree data={{ ...testdata }} size={1200} />
+      <Tree data={{ ...testdata }} size={940} />
       {/* <Graph data={{ ...testdata }} size={size} /> */}
     </>
   );

@@ -18,6 +18,8 @@ interface GraphLayout {
 
 const MARGIN = 11;
 const PADDING = 2;
+const CIRCLE_RADIUS = 3;
+const FONTSIZE = 10;
 
 export const Tree = ({ data, size }: { data: Data; size: number }) => {
   const svgRef = useRef<SVGSVGElement>(null);
@@ -27,6 +29,7 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
   const [layoutType, setLayoutType] = useState<LayoutT | null>(null);
 
   const [root, setRoot] = useState<d3.HierarchyPointNode<Data | null>>(null);
+  const [labelLength, setLabelLength] = useState(60);
 
   const curve = d3.link<unknown, d3.HierarchyPointNode<Data>>(d3.curveBumpX);
 
@@ -68,6 +71,8 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
   };
 
   const createNodes = (t, data: d3.HierarchyPointNode<Data>[]) => {
+    // prevent appending duplicates, since useLayoutEffect runs twice
+    nodesRef.current.innerHTML = '';
     const nodes = d3
       .select(nodesRef.current)
       .selectAll('g')
@@ -78,7 +83,7 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
     nodes
       .append('circle')
       .attr('fill', (d) => (d.children ? '#999' : '#ccc'))
-      .attr('r', 3);
+      .attr('r', CIRCLE_RADIUS);
 
     nodes
       .append('text')
@@ -86,9 +91,14 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
       .attr('text-anchor', (d) => (d.children ? 'end' : 'start'))
       .attr('paint-order', 'stroke')
       .attr('stroke', '#fff')
-      .attr('font-size', 10)
+      .attr('font-size', FONTSIZE)
       .attr('stroke-width', 4)
       .text((d) => d.data.name);
+
+    const s = nodes.nodes().map((a: SVGGraphicsElement) => {
+      return Math.ceil(a.getBBox().width);
+    });
+    return s.reduce((a, b) => Math.max(a, b));
   };
 
   const setNodes = (transformFn, data: d3.HierarchyPointNode<Data>[]) => {
@@ -103,70 +113,98 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
 
   const setTree = () => {
     // Compute the layout.
-    // root height is the greatest distance from any descendant leaf for nodes. "opposite" of depth, but minus 1 as 0 is start.
+    // d3.tree returns a layout function that sets the x and y coordinates for each node in the hierarchy in a manner that keeps nodes that are at the same depth aligned vertically
+    // root height is the greatest distance from any descendant leaf.
     // node size here is distance between depths
-
     const treeLayout = d3.tree<Data>().size([size, size]);
-    const root: d3.HierarchyPointNode<Data> = treeLayout(d3.hierarchy(data));
-    setRoot(root);
-    const linkLengthY = size / (root.height + PADDING);
-    //height of node , length of link
+    const root: d3.HierarchyPointNode<Data> = treeLayout(d3.hierarchy(data)); // set x/y
 
-    treeLayout.nodeSize([MARGIN, linkLengthY])(root);
+    // Height is number of nodes with root at the top, leaves at the bottom.
+    // Every node get's a padding for the circle
+    // the node height =  MARGIN. For length, we want to compensate for label
+    treeLayout.nodeSize([MARGIN, size / root.height - labelLength])(root);
 
     // Center the tree
-    let distancePositive = Infinity;
-    let distanceNegative = -Infinity;
+    // if the tree is left/right, x is used to calculate height
+    let x0 = size;
+    let x1 = -size;
     root.each((d) => {
-      if (d.x > distanceNegative) distanceNegative = d.x;
-      if (d.x < distancePositive) distancePositive = d.x;
+      if (d.x > x1) x1 = Math.ceil(d.x);
+      if (d.x < x0) x0 = Math.ceil(d.x);
     });
 
-    const height = Math.ceil(distanceNegative - distancePositive + MARGIN * 2);
-
-    d3.select(svgRef.current)
-      .attr('viewBox', [-linkLengthY / 2, Math.ceil(distancePositive - MARGIN), size, height])
-      .attr('width', size)
-      .attr('height', height);
-
+    let nodeLength = labelLength;
     if (!layoutType) {
       createLinks(tidyTree.link, root.links());
-      createNodes(tidyTree.transform, root.descendants());
+      nodeLength = createNodes(tidyTree.transform, root.descendants());
     }
+    setLabelLength(nodeLength);
+    const height = x1 - x0 + MARGIN * 2;
+
+    const t = d3.select(nodesRef.current).select('g:first-child').node() as SVGGraphicsElement;
+    const firstElem = Math.floor(t.getBBox().x);
+
+    d3.select(svgRef.current)
+      .attr('viewBox', [firstElem - MARGIN - PADDING, x0 - MARGIN, size, height])
+      .attr('width', size)
+      .attr('height', height)
+      .transition()
+      .duration(750);
+
+    treeLayout.nodeSize([MARGIN, size / root.height - nodeLength / 2])(root);
     setLines(tidyTree.link, root.links());
     setNodes(tidyTree.transform, root.descendants());
+
+    setRoot(root);
     setLayoutType('tidy');
     return root;
   };
 
   const setLayoutRadial = () => {
-    const radius = (size - 60 * 2) / 2;
+    const radius = (size - labelLength * 2) / 2;
 
     const treeLayout = d3
       .tree<Data>()
       .size([2 * Math.PI, radius])
       .separation((a, b) => (a.parent == b.parent ? 1 : 2) / a.depth);
 
-    const root = treeLayout(d3.hierarchy(data));
-    setRoot(root);
-    d3.select(svgRef.current)
-      .attr('viewBox', [-60 - radius, -60 - radius, size, size])
-      .attr('width', size)
-      .attr('height', size);
+    let root = treeLayout(d3.hierarchy(data));
 
+    let nodeLength = labelLength;
     if (!layoutType) {
       createLinks(radialTree.link, root.links());
-      createNodes(radialTree.transform, root.descendants());
+      nodeLength = createNodes(radialTree.transform, root.descendants());
     }
+    setLabelLength(nodeLength);
 
+    const r = (size - nodeLength) / 2;
+    const diameter = r * 2;
+
+    treeLayout
+      .size([2 * Math.PI, r])
+      .separation((a, b) => (a.parent == b.parent ? 1 : 2) / a.depth);
+    root = treeLayout(d3.hierarchy(data));
+
+    d3.select(svgRef.current)
+      .attr('viewBox', [
+        -r - labelLength - MARGIN,
+        -r - labelLength - MARGIN,
+        diameter + labelLength,
+        diameter
+      ])
+      .attr('width', size)
+      .attr('height', size);
     setLines(radialTree.link, root.links());
     setNodes(radialTree.transform, root.descendants());
+
+    setRoot(root);
     setLayoutType('radial');
   };
 
   useLayoutEffect(() => {
     if (layoutType) return;
-    setTree();
+    // setTree();
+    setLayoutRadial();
   }, []);
 
   const getLayoutTypeF = (): GraphLayout => {
