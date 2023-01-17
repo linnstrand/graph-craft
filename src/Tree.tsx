@@ -161,39 +161,27 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
   };
 
   const setLayoutRadial = () => {
-    const radius = (size - labelLength * 2) / 2;
+    const radius = (size - 60 * 2) / 2;
 
     const treeLayout = d3
       .tree<Data>()
       .size([2 * Math.PI, radius])
       .separation((a, b) => (a.parent == b.parent ? 1 : 2) / a.depth);
 
-    let root = treeLayout(d3.hierarchy(data));
+    const root = treeLayout(d3.hierarchy(data));
 
-    let nodeLength = labelLength;
     if (!layoutType) {
       createLinks(radialTree.link, root.links());
-      nodeLength = createNodes(radialTree.transform, root.descendants());
+      createNodes(radialTree.transform, root.descendants());
     }
-    setLabelLength(nodeLength);
-
-    const r = (size - nodeLength) / 2;
-    const diameter = r * 2;
-
-    treeLayout
-      .size([2 * Math.PI, r])
-      .separation((a, b) => (a.parent == b.parent ? 1 : 2) / a.depth);
-    root = treeLayout(d3.hierarchy(data));
 
     d3.select(svgRef.current)
-      .attr('viewBox', [
-        -r - labelLength - MARGIN,
-        -r - labelLength - MARGIN,
-        diameter + labelLength,
-        diameter
-      ])
+      .attr('viewBox', [-radius - labelLength - MARGIN, -radius - labelLength - MARGIN, size, size])
       .attr('width', size)
-      .attr('height', size);
+      .attr('height', size)
+      .transition()
+      .duration(750);
+
     setLines(radialTree.link, root.links());
     setNodes(radialTree.transform, root.descendants());
 
