@@ -63,7 +63,6 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
     nodesRef.current.innerHTML = '';
     const nodes = d3
       .select(nodesRef.current)
-      .attr('transform', `translate(${size / 2 + 75},${size / 2 + 75})`)
       .selectAll('g')
       .data(data)
       .join('g')
@@ -126,27 +125,33 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
     if (!layoutType) {
       nodeLength = createNodes(tidyTree.transform, root.descendants());
     }
-    setLabelLength(nodeLength);
+
     const height = x1 - x0 + MARGIN * 2;
     treeLayout.nodeSize([MARGIN, size / root.height - nodeLength / 2])(root);
 
     const t = d3.select(nodesRef.current).select('g:first-child').node() as SVGGraphicsElement;
-    const firstElem = Math.floor(t.getBBox().x);
+    const firstElem = t.getBBox();
+
+    // its better to adjust position with translate then changing the viewport
+    const trans = `translate(${Math.ceil(firstElem.width + MARGIN)},${-x0 + MARGIN})`;
+    d3.select(linesRef.current).attr('transform', trans).transition().duration(750).delay(750);
+    d3.select(nodesRef.current).attr('transform', trans).transition().duration(750);
+
     const svg = d3.select(svgRef.current);
     svg.attr('height', () => height);
-
     svg.attr('viewBox', () => [0, 0, size, height]);
 
     setLines(tidyTree.link, root.links());
     setNodes(tidyTree.transform, root.descendants());
 
+    setLabelLength(nodeLength);
     setRoot(root);
     setLayoutType('tidy');
     return root;
   };
 
   const setLayoutRadial = () => {
-    const radius = size / 2;
+    const radius = (size - labelLength) / 2;
 
     const treeLayout = d3
       .tree<Data>()
@@ -159,10 +164,15 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
     if (!layoutType) {
       nodeLength = createNodes(radialTree.transform, root.descendants());
     }
+    const trans = `translate(${(size + nodeLength) / 2 + MARGIN},${
+      (size + nodeLength) / 2 + MARGIN
+    })`;
+    d3.select(linesRef.current).attr('transform', trans);
+    d3.select(nodesRef.current).attr('transform', trans);
 
     const svg = d3.select(svgRef.current);
     svg.attr('height', () => size);
-    svg.attr('viewBox', () => [0, 0, size + 60, size]);
+    svg.attr('viewBox', () => [0, 0, size, size]);
 
     setLines(radialTree.link, root.links());
     setNodes(radialTree.transform, root.descendants());
@@ -176,13 +186,12 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
     const svg = d3.select(svgRef.current);
     svg.attr('width', size).attr('height', 0).transition().duration(750);
     d3.select(linesRef.current)
-      .attr('transform', `translate(${size / 2 + 75},${size / 2 + 75})`)
       .attr('fill', 'none')
       .attr('stroke', '#666')
       .attr('stroke-opacity', 0.6)
       .attr('stroke-width', 1);
 
-    //setTree();
+    // setTree();
     setLayoutRadial();
   }, []);
 
