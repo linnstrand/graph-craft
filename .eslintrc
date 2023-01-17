@@ -11,7 +11,8 @@
   "rules": {
     "no-debugger": "off",
     "react/jsx-uses-react": "off",
-    "react/react-in-jsx-scope": "off"
+    "react/react-in-jsx-scope": "off",
+    "spaced-comment": "warn"
   },
   "parser": "@typescript-eslint/parser",
   "parserOptions": {

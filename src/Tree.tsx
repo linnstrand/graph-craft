@@ -122,10 +122,10 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
       if (d.x < distancePositive) distancePositive = d.x;
     });
 
-    const height = distanceNegative - distancePositive + MARGIN * 2;
+    const height = Math.ceil(distanceNegative - distancePositive + MARGIN * 2);
 
     d3.select(svgRef.current)
-      .attr('viewBox', [(-linkLengthY * PADDING) / 2, distancePositive - MARGIN, size, height])
+      .attr('viewBox', [-linkLengthY / 2, Math.ceil(distancePositive - MARGIN), size, height])
       .attr('width', size)
       .attr('height', height);
 
