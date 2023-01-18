@@ -17,7 +17,6 @@ interface GraphLayout {
 }
 
 const MARGIN = 11;
-const PADDING = 2;
 const CIRCLE_RADIUS = 3;
 const FONTSIZE = 10;
 
@@ -48,25 +47,36 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
       .radius((d) => d.y)
   };
 
-  const setLines = (pathFn, links: d3.HierarchyPointLink<Data>[]) => {
-    d3.select(linesRef.current)
-      .selectAll('path')
-      .data(() => links)
-      .join('path')
-      .transition()
-      .duration(750)
-      .attr('d', pathFn);
+  const createTreeNodes = () => {
+    const nodes = d3.select(nodesRef.current); //.attr('transform', `rotate(90) translate(0,0)`); // place nodes at the right place
+    nodes.append('circle').attr('r', CIRCLE_RADIUS);
+
+    nodes
+      .selectAll('text')
+      .data([data])
+      .join('text')
+      .attr('x', () => 6)
+      .attr('font-size', FONTSIZE)
+      .attr('stroke-width', 4)
+      .text((d) => d.name);
+
+    const s = nodes.nodes().map((a: SVGGraphicsElement) => {
+      return Math.ceil(a.getBBox().width);
+    });
+    return s.reduce((a, b) => Math.max(a, b));
   };
 
-  const createNodes = (t, data: d3.HierarchyPointNode<Data>[]) => {
-    // prevent appending duplicates, since useLayoutEffect runs twice
+  const setTreeNodes = (tree: GraphLayout, root: d3.HierarchyPointNode<Data>) => {
     nodesRef.current.innerHTML = '';
+    linesRef.current.innerHTML = '';
+
     const nodes = d3
       .select(nodesRef.current)
       .selectAll('g')
-      .data(data)
-      .join('g')
-      .attr('transform', t); // place nodes at the right place
+      .data(() => root.descendants())
+      .join('g');
+
+    nodes.transition().duration(750).attr('transform', tree.transform); // place nodes at the right place
 
     nodes
       .append('circle')
@@ -76,30 +86,27 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
     nodes
       .append('text')
       .attr('x', (d) => (d.children ? -6 : 6))
-      .attr('text-anchor', (d) => (d.children ? 'end' : 'start'))
-      .attr('paint-order', 'stroke')
-      .attr('stroke', '#fff')
       .attr('font-size', FONTSIZE)
+      .attr('paint-order', 'stroke')
       .attr('stroke-width', 4)
+      .attr('stroke', '#fff')
+      .attr('text-anchor', (d) => (d.children ? 'end' : 'start'))
       .text((d) => d.data.name);
 
-    const s = nodes.nodes().map((a: SVGGraphicsElement) => {
-      return Math.ceil(a.getBBox().width);
-    });
-    return s.reduce((a, b) => Math.max(a, b));
-  };
-
-  const setNodes = (transformFn, data: d3.HierarchyPointNode<Data>[]) => {
-    d3.select(nodesRef.current)
-      .selectAll('g')
-      .data(() => data)
-      .join('g')
+    d3.select(linesRef.current)
+      .attr('fill', 'none')
+      .attr('stroke', '#666')
+      .attr('stroke-opacity', 0.6)
+      .attr('stroke-width', 1)
+      .selectAll('path')
+      .data(() => root.links())
+      .join('path')
       .transition()
       .duration(750)
-      .attr('transform', transformFn); // place nodes at the right place
+      .attr('d', tree.link);
   };
 
-  const setTree = () => {
+  const setTreeLayout = (nodeLength = labelLength) => {
     // Compute the layout.
     // d3.tree returns a layout function that sets the x and y coordinates for each node in the hierarchy in a manner that keeps nodes that are at the same depth aligned vertically
     // root height is the greatest distance from any descendant leaf.
@@ -121,19 +128,14 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
       if (d.x < x0) x0 = Math.ceil(d.x);
     });
 
-    let nodeLength = labelLength;
-    if (!layoutType) {
-      nodeLength = createNodes(tidyTree.transform, root.descendants());
-    }
-
     const height = x1 - x0 + MARGIN * 2;
     treeLayout.nodeSize([MARGIN, size / root.height - nodeLength / 2])(root);
 
     const t = d3.select(nodesRef.current).select('g:first-child').node() as SVGGraphicsElement;
-    const firstElem = t.getBBox();
+    const firstElem = t?.getBBox().width | nodeLength;
 
     // its better to adjust position with translate then changing the viewport
-    const trans = `translate(${Math.ceil(firstElem.width + MARGIN)},${-x0 + MARGIN})`;
+    const trans = `translate(${Math.ceil(firstElem + MARGIN)},${-x0 + MARGIN})`;
     d3.select(linesRef.current).attr('transform', trans).transition().duration(750).delay(750);
     d3.select(nodesRef.current).attr('transform', trans).transition().duration(750);
 
@@ -141,17 +143,15 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
     svg.attr('height', () => height);
     svg.attr('viewBox', () => [0, 0, size, height]);
 
-    setLines(tidyTree.link, root.links());
-    setNodes(tidyTree.transform, root.descendants());
+    setTreeNodes(tidyTree, root);
 
-    setLabelLength(nodeLength);
     setRoot(root);
     setLayoutType('tidy');
     return root;
   };
 
-  const setLayoutRadial = () => {
-    const radius = (size - labelLength) / 2;
+  const setLayoutRadial = (nodeLength = labelLength) => {
+    const radius = (size - nodeLength) / 2;
 
     const treeLayout = d3
       .tree<Data>()
@@ -160,10 +160,6 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
 
     const root = treeLayout(d3.hierarchy(data));
 
-    let nodeLength = labelLength;
-    if (!layoutType) {
-      nodeLength = createNodes(radialTree.transform, root.descendants());
-    }
     const trans = `translate(${(size + nodeLength) / 2 + MARGIN},${
       (size + nodeLength) / 2 + MARGIN
     })`;
@@ -174,28 +170,20 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
     svg.attr('height', () => size);
     svg.attr('viewBox', () => [0, 0, size, size]);
 
-    setLines(radialTree.link, root.links());
-    setNodes(radialTree.transform, root.descendants());
-    setLabelLength(nodeLength);
+    setTreeNodes(radialTree, root);
     setRoot(root);
     setLayoutType('radial');
   };
 
   useLayoutEffect(() => {
     if (layoutType) return;
-    const svg = d3.select(svgRef.current);
-    svg.attr('width', size).attr('height', 0).transition().duration(750);
-    d3.select(linesRef.current)
-      .attr('fill', 'none')
-      .attr('stroke', '#666')
-      .attr('stroke-opacity', 0.6)
-      .attr('stroke-width', 1);
-
-    // setTree();
-    setLayoutRadial();
+    const nodeLength = createTreeNodes();
+    setLabelLength(nodeLength);
+    // setTree(nodeLength);
+    setLayoutRadial(nodeLength);
   }, []);
 
-  const getLayoutTypeF = (): GraphLayout => {
+  const sortNodes = (sorter) => {
     let l;
     switch (layoutType) {
       case 'tidy':
@@ -207,14 +195,8 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
       default:
         l = tidyTree;
     }
-    return l;
-  };
-
-  const sortNodes = (sorter) => {
-    const l = getLayoutTypeF();
     sorter();
-    setLines(l.link, root.links());
-    setNodes(l.transform, root.descendants());
+    setTreeNodes(l, root);
   };
 
   const sortHeight = () => {
@@ -230,11 +212,11 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
       <div className="settings">
         <button onClick={sortHeight}>Sort height</button>
         <button onClick={sortValue}>Sort default</button>
-        <button onClick={setLayoutRadial}>layoutRadial</button>
-        <button onClick={setTree}>layoutTree</button>
+        <button onClick={() => setLayoutRadial()}>layoutRadial</button>
+        <button onClick={() => setTreeLayout()}>layoutTree</button>
       </div>
       <div className="container">
-        <svg ref={svgRef}>
+        <svg ref={svgRef} width={`${size}px`} height={`${size}px`} viewBox={`0 0 ${size} ${size}`}>
           <g className="lines" ref={linesRef}></g>
           <g className="nodes" ref={nodesRef}></g>
         </svg>
