@@ -47,25 +47,6 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
       .radius((d) => d.y)
   };
 
-  const createTreeNodes = () => {
-    const nodes = d3.select(nodesRef.current); //.attr('transform', `rotate(90) translate(0,0)`); // place nodes at the right place
-    nodes.append('circle').attr('r', CIRCLE_RADIUS);
-
-    nodes
-      .selectAll('text')
-      .data([data])
-      .join('text')
-      .attr('x', () => 6)
-      .attr('font-size', FONTSIZE)
-      .attr('stroke-width', 4)
-      .text((d) => d.name);
-
-    const s = nodes.nodes().map((a: SVGGraphicsElement) => {
-      return Math.ceil(a.getBBox().width);
-    });
-    return s.reduce((a, b) => Math.max(a, b));
-  };
-
   const setTreeNodes = (tree: GraphLayout, root: d3.HierarchyPointNode<Data>) => {
     nodesRef.current.innerHTML = '';
     linesRef.current.innerHTML = '';
@@ -150,7 +131,7 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
     return root;
   };
 
-  const setLayoutRadial = (nodeLength = labelLength) => {
+  const setLayoutRadial = (nodeLength = labelLength + 50) => {
     const radius = (size - nodeLength) / 2;
 
     const treeLayout = d3
@@ -177,10 +158,7 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
 
   useLayoutEffect(() => {
     if (layoutType) return;
-    const nodeLength = createTreeNodes();
-    setLabelLength(nodeLength);
-    // setTree(nodeLength);
-    setLayoutRadial(nodeLength);
+    setLayoutRadial();
   }, []);
 
   const sortNodes = (sorter) => {
