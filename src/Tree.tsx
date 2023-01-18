@@ -26,21 +26,21 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
   const linesRef = useRef<SVGSVGElement>(null);
 
   const [layoutType, setLayoutType] = useState<LayoutT | null>(null);
-
   const [root, setRoot] = useState<d3.HierarchyPointNode<Data | null>>(null);
   const [labelLength, setLabelLength] = useState(60);
-
-  const curve = d3.link<unknown, d3.HierarchyPointNode<Data>>(d3.curveBumpX);
 
   const tidyTree: GraphLayout = {
     variant: 'tidy',
     transform: (d) => `translate(${d.y},${d.x})`,
-    link: curve.x((d) => d.y).y((d) => d.x)
+    link: d3
+      .link<unknown, d3.HierarchyPointNode<Data>>(d3.curveBumpX)
+      .x((d) => d.y)
+      .y((d) => d.x)
   };
 
   const radialTree: GraphLayout = {
     variant: 'radial',
-    transform: (d) => `rotate(${(d.x * 180) / Math.PI - 90}) translate(${d.y},0)`,
+    transform: (d) => `rotate(${Math.ceil((d.x * 180) / Math.PI - 90)}) translate(${d.y},0)`,
     link: d3
       .linkRadial<unknown, d3.HierarchyPointNode<Data>>()
       .angle((d) => d.x)
@@ -117,6 +117,11 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
       // the node height =  MARGIN. For length, we want to compensate for label
       treeLayout.nodeSize([MARGIN, size / r.height - labelLength])(r);
 
+      let nodeLength = labelLength;
+      if (!layoutType) {
+        nodeLength = createNodes(tidyTree.transform, r.descendants());
+      }
+      treeLayout.nodeSize([MARGIN, size / r.height - nodeLength / 2])(r);
       // Center the tree
       // if the tree is left/right, x is used to calculate height
       let x0 = size;
@@ -126,19 +131,17 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
         if (d.x < x0) x0 = Math.ceil(d.x);
       });
 
-      let nodeLength = labelLength;
-      if (!layoutType) {
-        nodeLength = createNodes(tidyTree.transform, r.descendants());
-      }
-      // nodeLength = labelLength;
       const height = x1 - x0 + MARGIN * 2;
-      treeLayout.nodeSize([MARGIN, size / r.height - nodeLength / 2])(r);
 
-      const t = d3.select(nodesRef.current).select(':first-child').node() as SVGGraphicsElement;
-      const firstElem = t?.getBBox();
-      const w = firstElem?.width ?? nodeLength;
+      const rootElement = d3
+        .select(nodesRef.current)
+        .select(':first-child')
+        .node() as SVGGraphicsElement;
+
       // its better to adjust position with translate then changing the viewport
-      const trans = `translate(${Math.ceil(w + MARGIN)},${-x0 + MARGIN})`;
+      const trans = `translate(${Math.ceil(rootElement?.getBBox()?.width ?? nodeLength + MARGIN)},${
+        -x0 + MARGIN
+      })`;
       d3.select(linesRef.current).attr('transform', trans);
       d3.select(nodesRef.current).attr('transform', trans);
 
@@ -189,9 +192,7 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
 
   useLayoutEffect(() => {
     if (layoutType) return;
-
-    //setTreeLayout();
-    setLayoutRadial();
+    setTreeLayout();
   }, []);
 
   const sortNodes = (sorter) => {
