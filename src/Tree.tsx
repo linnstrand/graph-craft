@@ -139,8 +139,8 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
       const w = firstElem?.width ?? nodeLength;
       // its better to adjust position with translate then changing the viewport
       const trans = `translate(${Math.ceil(w + MARGIN)},${-x0 + MARGIN})`;
-      d3.select(linesRef.current).attr('transform', trans).transition().duration(750).delay(750);
-      d3.select(nodesRef.current).attr('transform', trans).transition().duration(750);
+      d3.select(linesRef.current).attr('transform', trans);
+      d3.select(nodesRef.current).attr('transform', trans);
 
       const svg = d3.select(svgRef.current);
       svg.attr('height', () => height);
