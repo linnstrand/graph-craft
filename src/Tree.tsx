@@ -19,6 +19,7 @@ interface GraphLayout {
 const MARGIN = 11;
 const CIRCLE_RADIUS = 3;
 const FONTSIZE = 10;
+const ANIMATION_TIMER = 1000;
 
 export const Tree = ({ data, size }: { data: Data; size: number }) => {
   const svgRef = useRef<SVGSVGElement>(null);
@@ -51,12 +52,10 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
     // we want to set start position, same as nodes
     d3.select(linesRef.current)
       .selectAll('path')
-      .data(() => data)
-      .join('path')
       .attr(
         'd',
         d3
-          .link<unknown, d3.HierarchyPointNode<Data>>(d3.curveBumpX)
+          .linkHorizontal<unknown, unknown>()
           .x(() => 0)
           .y(() => 0)
       );
@@ -68,7 +67,8 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
       .selectAll('g')
       .data(() => data)
       .join('g')
-      .attr('transform', `translate(0,0)`);
+      .attr('transform', `translate(0,0)`)
+      .attr('opacity', 0);
 
     // nodes.attr('transform', t); // place nodes at the right place
 
@@ -94,12 +94,14 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
   };
 
   const setTreeNodes = (tree: GraphLayout, root: d3.HierarchyPointNode<Data>) => {
+    // when we change these, we want to move from current to new. Current we should have in old root. We just need to use it instead of start
+
     d3.select(linesRef.current)
       .selectAll('path')
       .data(() => root.links())
       .join('path')
       .transition()
-      .duration(750)
+      .duration(ANIMATION_TIMER)
       .attr('d', tree.link);
 
     d3.select(nodesRef.current)
@@ -107,8 +109,9 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
       .data(() => root.descendants())
       .join('g')
       .transition()
-      .duration(750)
-      .attr('transform', tree.transform); // place nodes at the right place
+      .duration(ANIMATION_TIMER)
+      .attr('opacity', 1)
+      .attr('transform', tree.transform);
   };
 
   const setTreeLayout = () => {
@@ -151,8 +154,8 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
       const trans = `translate(${Math.ceil(rootElement?.getBBox()?.width ?? nodeLength + MARGIN)},${
         -x0 + MARGIN
       })`;
-      d3.select(linesRef.current).attr('transform', trans);
-      d3.select(nodesRef.current).attr('transform', trans);
+      d3.select(linesRef.current).transition().duration(ANIMATION_TIMER).attr('transform', trans);
+      d3.select(nodesRef.current).transition().duration(ANIMATION_TIMER).attr('transform', trans);
 
       const svg = d3.select(svgRef.current);
       svg.attr('height', () => height);
@@ -186,8 +189,8 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
         (size + nodeLength) / 2 + MARGIN
       })`;
 
-      d3.select(linesRef.current).attr('transform', trans);
-      d3.select(nodesRef.current).attr('transform', trans);
+      d3.select(linesRef.current).transition().duration(ANIMATION_TIMER).attr('transform', trans);
+      d3.select(nodesRef.current).transition().duration(ANIMATION_TIMER).attr('transform', trans);
       setLabelLength(nodeLength);
       setRoot(r);
     }
@@ -201,7 +204,7 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
 
   useLayoutEffect(() => {
     if (layoutType) return;
-    setTreeLayout();
+    setLayoutRadial(); // setTreeLayout();
   }, []);
 
   const sortNodes = (sorter) => {
