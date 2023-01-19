@@ -47,21 +47,30 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
       .radius((d) => d.y)
   };
 
-  const createNodes = (t, data: d3.HierarchyPointNode<Data>[]) => {
-    // prevent appending duplicates, since useLayoutEffect runs twice
+  const createNodes = (data: d3.HierarchyPointNode<Data>[]) => {
+    // we want to set start position, same as nodes
     d3.select(linesRef.current)
-      .attr('fill', 'none')
-      .attr('stroke', '#666')
-      .attr('stroke-opacity', 0.6)
-      .attr('stroke-width', 1);
+      .selectAll('path')
+      .data(() => data)
+      .join('path')
+      .attr(
+        'd',
+        d3
+          .link<unknown, d3.HierarchyPointNode<Data>>(d3.curveBumpX)
+          .x(() => 0)
+          .y(() => 0)
+      );
 
+    // prevent appending duplicates, since useLayoutEffect runs twice
     nodesRef.current.innerHTML = '';
     const nodes = d3
       .select(nodesRef.current)
       .selectAll('g')
-      .data(data)
+      .data(() => data)
       .join('g')
-      .attr('transform', t); // place nodes at the right place
+      .attr('transform', `translate(0,0)`);
+
+    // nodes.attr('transform', t); // place nodes at the right place
 
     nodes
       .append('circle')
@@ -119,7 +128,7 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
 
       let nodeLength = labelLength;
       if (!layoutType) {
-        nodeLength = createNodes(tidyTree.transform, r.descendants());
+        nodeLength = createNodes(r.descendants());
       }
       treeLayout.nodeSize([MARGIN, size / r.height - nodeLength / 2])(r);
       // Center the tree
@@ -171,7 +180,7 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
 
       let nodeLength = labelLength;
       if (!layoutType) {
-        nodeLength = createNodes(radialTree.transform, r.descendants());
+        nodeLength = createNodes(r.descendants());
       }
       const trans = `translate(${(size + nodeLength) / 2 + MARGIN},${
         (size + nodeLength) / 2 + MARGIN
