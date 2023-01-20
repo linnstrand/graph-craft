@@ -1,13 +1,6 @@
 import { useMemo, useRef, useLayoutEffect } from 'react';
 import * as d3 from 'd3';
-
-interface Data {
-  name: string;
-  value?: number;
-  target?: Partial<d3.HierarchyRectangularNode<Data>>;
-  current?: d3.HierarchyRectangularNode<Data>;
-  children?: Data[];
-}
+import { Data, sortHeight } from './util';
 
 export const Graph = ({ data, size }: { data: Data; size: number }) => {
   const ref = useRef<SVGSVGElement>(null);
@@ -16,10 +9,8 @@ export const Graph = ({ data, size }: { data: Data; size: number }) => {
   const radius = width / 6;
 
   const root: d3.HierarchyRectangularNode<Data> = useMemo(() => {
-    const p = d3
-      .hierarchy(data)
-      .sum((d) => d.value)
-      .sort((a, b) => b.value - a.value);
+    const p = d3.hierarchy(data);
+    sortHeight(p);
     const r = d3.partition<Data>().size([2 * Math.PI, p.height + 1])(p);
     return r.each((d) => (d.data.current = d));
   }, [data, size]);
@@ -34,13 +25,9 @@ export const Graph = ({ data, size }: { data: Data; size: number }) => {
     .innerRadius((d) => d.y0 * radius) // radius for the inside of the circle
     .outerRadius((d) => Math.max(d.y0 * radius, d.y1 * radius - 1)); // radius for outside
 
-  function arcVisible(d) {
-    return d.y1 <= 3 && d.y0 >= 1 && d.x1 > d.x0;
-  }
+  const arcVisible = (d) => d.y1 <= 3 && d.y0 >= 1 && d.x1 > d.x0;
 
-  function labelVisible(d) {
-    return d.y1 <= 3 && d.y0 >= 1 && (d.y1 - d.y0) * (d.x1 - d.x0) > 0.03;
-  }
+  const labelVisible = (d) => d.y1 <= 3 && d.y0 >= 1 && (d.y1 - d.y0) * (d.x1 - d.x0) > 0.03;
 
   function labelTransform(d) {
     const x = (((d.x0 + d.x1) / 2) * 180) / Math.PI; // 180
@@ -144,7 +131,7 @@ export const Graph = ({ data, size }: { data: Data; size: number }) => {
 
   return (
     <>
-      <div className="container">
+      <div className="container" style={{ margin: '10px' }}>
         <svg
           width={`${size}px`}
           height={`${size}px`}

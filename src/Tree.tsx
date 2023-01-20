@@ -1,12 +1,8 @@
 import * as d3 from 'd3';
 import './tree.css';
 import { useLayoutEffect, useRef, useState } from 'react';
+import { Data, sortHeight, sortValue } from './util';
 
-interface Data {
-  name: string;
-  value?: number;
-  children?: Data[];
-}
 type LayoutT = 'tidy' | 'radial' | 'cluster';
 interface GraphLayout {
   variant: LayoutT;
@@ -49,6 +45,12 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
       .radius((d) => d.y)
   };
 
+  useLayoutEffect(() => {
+    if (layoutType) return;
+    setTreeLayout();
+    // setLayoutRadial();
+  }, []);
+
   const createNodes = (data: d3.HierarchyPointNode<Data>[]) => {
     // we want to set start position, same as nodes
     d3.select(linesRef.current)
@@ -63,6 +65,8 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
 
     // prevent appending duplicates, since useLayoutEffect runs twice
     nodesRef.current.innerHTML = '';
+
+    // Start nodes invisible for nice fade in
     const nodes = d3
       .select(nodesRef.current)
       .selectAll('g')
@@ -71,8 +75,7 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
       .attr('transform', `translate(0, ${size / 2})`)
       .attr('opacity', 0);
 
-    // nodes.attr('transform', t); // place nodes at the right place
-
+    // Maybe I should look att enter/exit/update nodes here
     nodes
       .append('circle')
       .attr('fill', (d) => (d.children ? '#999' : '#ccc'))
@@ -89,15 +92,14 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
       .text((d) => d.data.name);
 
     // make sure the labels are not pushed outside view
-    const s = nodes.nodes().map((a: SVGGraphicsElement) => {
+    const longestLabel = nodes.nodes().map((a: SVGGraphicsElement) => {
       return Math.ceil(a.getBBox().width);
     });
-    return s.reduce((a, b) => Math.max(a, b));
+    return longestLabel.reduce((a, b) => Math.max(a, b));
   };
 
   const setTreeNodes = (tree: GraphLayout, root: d3.HierarchyPointNode<Data>) => {
-    // when we change these, we want to move from current to new. Current we should have in old root. We just need to use it instead of start
-
+    // when we change these, we want to move from current to new.
     d3.select(linesRef.current)
       .selectAll('path')
       .data(() => root.links())
@@ -123,7 +125,6 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
     // root height is the greatest distance from any descendant leaf.
     // node size here is distance between depths
     let r = root;
-    console.log(layoutType, treeType);
     if (!layoutType || layoutType !== treeType) {
       const treeLayout = treeFn<Data>().size([size, size]);
       r = treeLayout(d3.hierarchy(data)); // set x/y
@@ -137,9 +138,11 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
       if (!layoutType) {
         nodeLength = createNodes(r.descendants());
       }
+
+      // recalculating nodeSize so that the nodes are not pushed outside view
       treeLayout.nodeSize([MARGIN, size / r.height - nodeLength / 2])(r);
       // Center the tree
-      // if the tree is left/right, x is used to calculate height
+      // if the tree is left/right (it is), x is used to calculate height
       let x0 = size;
       let x1 = -size;
       r.each((d) => {
@@ -147,6 +150,7 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
         if (d.x < x0) x0 = Math.ceil(d.x);
       });
 
+      // We let tree height be dynamic to keep the margins and size
       const height = x1 - x0 + MARGIN * 2;
 
       const rootElement = d3
@@ -155,12 +159,11 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
         .node() as SVGGraphicsElement;
 
       // its better to adjust position with translate then changing the viewport
-      const trans = `translate(${Math.ceil(rootElement?.getBBox()?.width ?? nodeLength + MARGIN)},${
-        -x0 + MARGIN
-      })`;
-      d3.select(linesRef.current).transition().duration(ANIMATION_TIMER).attr('transform', trans);
-      d3.select(nodesRef.current).transition().duration(ANIMATION_TIMER).attr('transform', trans);
-
+      setStartPosition(
+        `translate(${Math.ceil(rootElement?.getBBox()?.width ?? nodeLength + MARGIN)},${
+          -x0 + MARGIN
+        })`
+      );
       const svg = d3.select(svgRef.current);
       svg.attr('height', () => height);
       svg.attr('viewBox', () => [0, 0, size, height]);
@@ -171,6 +174,11 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
     setTreeNodes(tidyTree, r);
 
     return r;
+  };
+
+  const setStartPosition = (transform: string) => {
+    d3.select(linesRef.current).transition().duration(ANIMATION_TIMER).attr('transform', transform);
+    d3.select(nodesRef.current).transition().duration(ANIMATION_TIMER).attr('transform', transform);
   };
 
   const setLayoutRadial = () => {
@@ -189,12 +197,10 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
       if (!layoutType) {
         nodeLength = createNodes(r.descendants());
       }
-      const trans = `translate(${(size + nodeLength) / 2 + MARGIN},${
-        (size + nodeLength) / 2 + MARGIN
-      })`;
+      setStartPosition(
+        `translate(${(size + nodeLength) / 2 + MARGIN},${(size + nodeLength) / 2 + MARGIN})`
+      );
 
-      d3.select(linesRef.current).transition().duration(ANIMATION_TIMER).attr('transform', trans);
-      d3.select(nodesRef.current).transition().duration(ANIMATION_TIMER).attr('transform', trans);
       setLabelLength(nodeLength);
       setRoot(r);
     }
@@ -205,12 +211,6 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
     setTreeNodes(radialTree, r);
     setLayoutType('radial');
   };
-
-  useLayoutEffect(() => {
-    if (layoutType) return;
-    setTreeLayout();
-    // setLayoutRadial();
-  }, []);
 
   const sortNodes = (sorter) => {
     let l;
@@ -224,44 +224,40 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
       default:
         l = tidyTree;
     }
-    sorter();
+    sorter(root);
     setTreeNodes(l, root);
   };
 
-  const sortHeight = () => {
-    sortNodes(() => root.sort((a, b) => d3.descending(a.height, b.height)));
-  };
-
-  const sortValue = () => {
-    sortNodes(() => root.sum((d) => d.value).sort((a, b) => b.value - a.value));
-  };
-
   return (
-    <div className="container">
+    <>
       <div className="settings">
-        <button onClick={sortHeight}>Sort height</button>
-        <button onClick={sortValue}>Sort default</button>
-        <button onClick={setLayoutRadial}>layoutRadial</button>
+        <button onClick={() => sortNodes(sortHeight)}>Sort height</button>
+        <button onClick={() => sortNodes(sortValue)}>Sort Value</button>
         <button onClick={() => setTreeLayout()}>layoutTree</button>
-        {layoutType !== 'radial' && (
-          <div>
-            <input
-              type="checkbox"
-              checked={layoutType === 'cluster'}
-              onChange={() => {
-                layoutType === 'tidy' ? setTreeLayout('cluster') : setTreeLayout('tidy');
-              }}
-            />
-            <label>Use Cluster</label>
-          </div>
-        )}
+        <button onClick={setLayoutRadial}>layoutRadial</button>
+        <div>
+          <button
+            onClick={() => {
+              layoutType === 'tidy' ? setTreeLayout('cluster') : setTreeLayout('tidy');
+            }}
+          >
+            {layoutType === 'cluster' ? 'Show Tree' : 'Show Cluster'}
+          </button>
+        </div>
       </div>
-      <div className="container">
-        <svg ref={svgRef} width={`${size}px`} height={`${size}px`} viewBox={`0 0 ${size} ${size}`}>
-          <g className="lines" ref={linesRef}></g>
-          <g className="nodes" ref={nodesRef}></g>
-        </svg>
+      <div className="tree-container">
+        <div className="container">
+          <svg
+            ref={svgRef}
+            width={`${size}px`}
+            height={`${size}px`}
+            viewBox={`0 0 ${size} ${size}`}
+          >
+            <g className="lines" ref={linesRef}></g>
+            <g className="nodes" ref={nodesRef}></g>
+          </svg>
+        </div>
       </div>
-    </div>
+    </>
   );
 };
