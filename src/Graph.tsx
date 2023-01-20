@@ -4,7 +4,7 @@ import * as d3 from 'd3';
 interface Data {
   name: string;
   value?: number;
-  target?: any; //Partial<d3.HierarchyRectangularNode<Data>>;
+  target?: Partial<d3.HierarchyRectangularNode<Data>>;
   current?: d3.HierarchyRectangularNode<Data>;
   children?: Data[];
 }
@@ -24,14 +24,14 @@ export const Graph = ({ data, size }: { data: Data; size: number }) => {
     return r.each((d) => (d.data.current = d));
   }, [data, size]);
 
-  //for every datum, add a slice to the arc
+  // for every datum, add a slice to the arc
   const arc = d3
     .arc<d3.HierarchyRectangularNode<Data>>()
     .startAngle((d) => d.x0)
     .endAngle((d) => d.x1)
     .padAngle((d) => Math.min((d.x1 - d.x0) / 2, 0.005)) // space between slices
     .padRadius(radius * 1.5)
-    .innerRadius((d) => d.y0 * radius) //radius for the inside of the circle
+    .innerRadius((d) => d.y0 * radius) // radius for the inside of the circle
     .outerRadius((d) => Math.max(d.y0 * radius, d.y1 * radius - 1)); // radius for outside
 
   function arcVisible(d) {
@@ -43,7 +43,7 @@ export const Graph = ({ data, size }: { data: Data; size: number }) => {
   }
 
   function labelTransform(d) {
-    const x = (((d.x0 + d.x1) / 2) * 180) / Math.PI; //180
+    const x = (((d.x0 + d.x1) / 2) * 180) / Math.PI; // 180
     const y = ((d.y0 + d.y1) / 2) * radius; // translate 80, rotate 180
 
     // clockwise, distance, spin
@@ -140,7 +140,6 @@ export const Graph = ({ data, size }: { data: Data; size: number }) => {
       )
       .attr('fill-opacity', (d) => +labelVisible(d.data.target))
       .attrTween('transform', (d) => () => labelTransform(d.data.current));
-    //.attrTween('transform', (d) => () => labelTransform(d.data.current));
   }
 
   return (

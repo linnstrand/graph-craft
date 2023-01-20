@@ -7,7 +7,7 @@ interface Data {
   value?: number;
   children?: Data[];
 }
-type LayoutT = 'tidy' | 'radial';
+type LayoutT = 'tidy' | 'radial' | 'cluster';
 interface GraphLayout {
   variant: LayoutT;
   transform: (d: d3.HierarchyPointNode<Data>) => string;
@@ -27,6 +27,7 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
   const linesRef = useRef<SVGSVGElement>(null);
 
   const [layoutType, setLayoutType] = useState<LayoutT | null>(null);
+
   const [root, setRoot] = useState<d3.HierarchyPointNode<Data | null>>(null);
   const [labelLength, setLabelLength] = useState(60);
 
@@ -57,7 +58,7 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
         d3
           .linkHorizontal<unknown, unknown>()
           .x(() => 0)
-          .y(() => 0)
+          .y(() => size / 2)
       );
 
     // prevent appending duplicates, since useLayoutEffect runs twice
@@ -67,7 +68,7 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
       .selectAll('g')
       .data(() => data)
       .join('g')
-      .attr('transform', `translate(0,0)`)
+      .attr('transform', `translate(0, ${size / 2})`)
       .attr('opacity', 0);
 
     // nodes.attr('transform', t); // place nodes at the right place
@@ -87,6 +88,7 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
       .attr('stroke-width', 4)
       .text((d) => d.data.name);
 
+    // make sure the labels are not pushed outside view
     const s = nodes.nodes().map((a: SVGGraphicsElement) => {
       return Math.ceil(a.getBBox().width);
     });
@@ -114,14 +116,16 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
       .attr('transform', tree.transform);
   };
 
-  const setTreeLayout = () => {
+  const setTreeLayout = (treeType: LayoutT = 'tidy') => {
+    const treeFn = treeType === 'tidy' ? d3.tree : d3.cluster;
     // Compute the layout.
     // d3.tree returns a layout function that sets the x and y coordinates for each node in the hierarchy in a manner that keeps nodes that are at the same depth aligned vertically
     // root height is the greatest distance from any descendant leaf.
     // node size here is distance between depths
     let r = root;
-    if (layoutType !== 'tidy') {
-      const treeLayout = d3.tree<Data>().size([size, size]);
+    console.log(layoutType, treeType);
+    if (!layoutType || layoutType !== treeType) {
+      const treeLayout = treeFn<Data>().size([size, size]);
       r = treeLayout(d3.hierarchy(data)); // set x/y
 
       // Height is number of nodes with root at the top, leaves at the bottom.
@@ -162,7 +166,7 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
       svg.attr('viewBox', () => [0, 0, size, height]);
       setLabelLength(nodeLength);
       setRoot(r);
-      setLayoutType('tidy');
+      setLayoutType(treeType);
     }
     setTreeNodes(tidyTree, r);
 
@@ -204,7 +208,8 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
 
   useLayoutEffect(() => {
     if (layoutType) return;
-    setLayoutRadial(); // setTreeLayout();
+    setTreeLayout();
+    // setLayoutRadial();
   }, []);
 
   const sortNodes = (sorter) => {
@@ -237,7 +242,19 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
         <button onClick={sortHeight}>Sort height</button>
         <button onClick={sortValue}>Sort default</button>
         <button onClick={setLayoutRadial}>layoutRadial</button>
-        <button onClick={setTreeLayout}>layoutTree</button>
+        <button onClick={() => setTreeLayout()}>layoutTree</button>
+        {layoutType !== 'radial' && (
+          <div>
+            <input
+              type="checkbox"
+              checked={layoutType === 'cluster'}
+              onChange={() => {
+                layoutType === 'tidy' ? setTreeLayout('cluster') : setTreeLayout('tidy');
+              }}
+            />
+            <label>Use Cluster</label>
+          </div>
+        )}
       </div>
       <div className="container">
         <svg ref={svgRef} width={`${size}px`} height={`${size}px`} viewBox={`0 0 ${size} ${size}`}>
