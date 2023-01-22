@@ -1,4 +1,5 @@
-svg {
+text {
+  /* https://observablehq.com/@julesblm/svg-dominant-baseline-alignment-baseline-attributes */
   dominant-baseline: middle;
 }
 

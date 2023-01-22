@@ -2,7 +2,7 @@ import { useMemo, useRef, useLayoutEffect } from 'react';
 import * as d3 from 'd3';
 import { Data, sortHeight } from './util';
 
-export const Graph = ({ data, size }: { data: Data; size: number }) => {
+export const Sunburst = ({ data, size }: { data: Data; size: number }) => {
   const ref = useRef<SVGSVGElement>(null);
   const width = size;
 
@@ -25,9 +25,11 @@ export const Graph = ({ data, size }: { data: Data; size: number }) => {
     .innerRadius((d) => d.y0 * radius) // radius for the inside of the circle
     .outerRadius((d) => Math.max(d.y0 * radius, d.y1 * radius - 1)); // radius for outside
 
-  const arcVisible = (d) => d.y1 <= 3 && d.y0 >= 1 && d.x1 > d.x0;
+  const arcVisible = (d: d3.HierarchyRectangularNode<Data>) =>
+    d.y1 <= 3 && d.y0 >= 1 && d.x1 > d.x0;
 
-  const labelVisible = (d) => d.y1 <= 3 && d.y0 >= 1 && (d.y1 - d.y0) * (d.x1 - d.x0) > 0.03;
+  const labelVisible = (d: d3.HierarchyRectangularNode<Data>) =>
+    d.y1 <= 3 && d.y0 >= 1 && (d.y1 - d.y0) * (d.x1 - d.x0) > 0.03;
 
   function labelTransform(d) {
     const x = (((d.x0 + d.x1) / 2) * 180) / Math.PI; // 180
@@ -71,7 +73,9 @@ export const Graph = ({ data, size }: { data: Data; size: number }) => {
       .selectAll('text')
       .data(root.descendants().slice(1))
       .join('text')
-      .attr('font-size', (d) => `${Math.min(Math.round((d.x1 - d.x0) * radius + 2), 16)}px`)
+      .attr('font-size', (d) => {
+        return `${Math.min(Math.round((d.x1 - d.x0) * radius + 2), 16)}px`;
+      })
       .attr('fill-opacity', (d) => +labelVisible(d.data.current))
       .attr('transform', (d) => labelTransform(d.data.current))
       .text((d) => d.data.name);

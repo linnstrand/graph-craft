@@ -1,6 +1,6 @@
 import testdata from './testdata.json';
 import { Tree } from './Tree';
-import { Graph } from './Graph';
+import { Sunburst } from './Sunburst';
 import { useState } from 'react';
 
 function App() {
@@ -35,7 +35,7 @@ const Container = () => {
         </ul>
       </nav>
       {graph === 'sunburst' ? (
-        <Graph data={{ ...testdata }} size={750} />
+        <Sunburst data={{ ...testdata }} size={940} />
       ) : (
         <Tree data={{ ...testdata }} size={940} />
       )}
