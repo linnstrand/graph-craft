@@ -153,10 +153,7 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
       // We let tree height be dynamic to keep the margins and size
       const height = x1 - x0 + MARGIN * 2;
 
-      const rootElement = d3
-        .select(nodesRef.current)
-        .select(':first-child')
-        .node() as SVGGraphicsElement;
+      const rootElement = d3.select(nodesRef.current).selectChild().node() as SVGGraphicsElement;
 
       // its better to adjust position with translate then changing the viewport
       setStartPosition(
