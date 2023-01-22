@@ -49,7 +49,7 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
 
   useLayoutEffect(() => {
     if (layoutType) return;
-    //  setTreeLayout();
+    //  setTreeLayout('tree');
     setLayoutRadial('tree');
   }, []);
 
@@ -170,7 +170,7 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
     );
     const svg = d3.select(svgRef.current);
     svg.attr('height', () => height);
-    svg.attr('viewBox', () => [0, 0, size + labelLength, height]);
+    svg.attr('viewBox', () => [0, 0, size, height]);
     setLabelLength(nodeLength);
     setRoot(r);
     setLayoutType('tidy');
@@ -183,31 +183,27 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
   const setLayoutRadial = (v: 'tree' | 'cluster') => {
     const treeFn = v === 'tree' ? d3.tree : d3.cluster;
     let r = root;
-
     variant = v;
-    const radius = (size - labelLength) / 2;
 
-    const hirarchy = d3.hierarchy(data);
-    const treeLayout = treeFn<Data>()
-      .size([2 * Math.PI, radius])
-      .separation((a, b) => (a.parent == b.parent ? 1 : 2) / a.depth);
-
-    r = treeLayout(hirarchy).sort((a, b) => d3.descending(a.height, b.height));
+    let treeLayout = treeFn<Data>().size([2 * Math.PI, size / 2]);
+    r = treeLayout(d3.hierarchy(data));
 
     let nodeLength = labelLength;
     if (!layoutType) {
       nodeLength = createNodes(r.descendants());
     }
-    setStartPosition(
-      `translate(${(size + nodeLength) / 2 + MARGIN},${(size + nodeLength) / 2 + MARGIN})`
-    );
+    treeLayout = treeFn<Data>()
+      .size([2 * Math.PI, (size - nodeLength * 2) / 2])
+      .separation((a, b) => (a.parent == b.parent ? 1 : 2) / a.depth);
+
+    r = treeLayout(d3.hierarchy(data)).sort((a, b) => d3.descending(a.height, b.height));
+    setStartPosition(`translate(${size / 2},${size / 2})`);
 
     setLabelLength(nodeLength);
     setRoot(r);
-
     const svg = d3.select(svgRef.current);
     svg.attr('height', size);
-    svg.attr('viewBox', [0, 0, size + labelLength, size + labelLength * 2]);
+    svg.attr('viewBox', [0, 0, size, size]);
     setTreeNodes(radialTree, r);
     setLayoutType('radial');
   };
