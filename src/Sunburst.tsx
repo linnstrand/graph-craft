@@ -8,10 +8,10 @@ export const Sunburst = ({ data, size }: { data: Data; size: number }) => {
   const radius = size / 6;
 
   const root: d3.HierarchyRectangularNode<Data> = useMemo(() => {
-    const p = d3.hierarchy(data);
-    sortHeight(p);
-    const r = d3.partition<Data>().size([2 * Math.PI, p.height + 1])(p);
-    return r.each((d) => (d.data.current = d));
+    const hirarchy = d3.hierarchy(data);
+    sortHeight(hirarchy);
+    const partition = d3.partition<Data>().size([2 * Math.PI, hirarchy.height + 1])(hirarchy);
+    return partition.each((d) => (d.data.current = d));
   }, [data, size]);
 
   // for every datum, add a slice to the arc

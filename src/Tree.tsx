@@ -1,9 +1,9 @@
 import * as d3 from 'd3';
 import './tree.css';
 import { useLayoutEffect, useRef, useState } from 'react';
-import { Data, sortHeight, sortValue } from './util';
+import { Data } from './util';
 
-type LayoutT = 'tidy' | 'radial' | 'cluster';
+type LayoutT = 'tidy' | 'radial';
 interface GraphLayout {
   variant: LayoutT;
   transform: (d: d3.HierarchyPointNode<Data>) => string;
@@ -21,6 +21,8 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const nodesRef = useRef<SVGSVGElement>(null);
   const linesRef = useRef<SVGSVGElement>(null);
+
+  let variant = 'tree';
 
   const [layoutType, setLayoutType] = useState<LayoutT | null>(null);
 
@@ -47,11 +49,11 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
 
   useLayoutEffect(() => {
     if (layoutType) return;
-    setTreeLayout();
-    // setLayoutRadial();
+    //  setTreeLayout();
+    setLayoutRadial('tree');
   }, []);
 
-  const createNodes = (data: d3.HierarchyPointNode<Data>[]) => {
+  const createNodes = (root: d3.HierarchyPointNode<Data>[]) => {
     // we want to set start position, same as nodes
     d3.select(linesRef.current)
       .selectAll('path')
@@ -70,7 +72,7 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
     const nodes = d3
       .select(nodesRef.current)
       .selectAll('g')
-      .data(() => data)
+      .data(() => root)
       .join('g')
       .attr('transform', `translate(0, ${size / 2})`)
       .attr('opacity', 0);
@@ -118,128 +120,119 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
       .attr('transform', tree.transform);
   };
 
-  const setTreeLayout = (treeType: LayoutT = 'tidy') => {
-    const treeFn = treeType === 'tidy' ? d3.tree : d3.cluster;
-    // Compute the layout.
-    // d3.tree returns a layout function that sets the x and y coordinates for each node in the hierarchy in a manner that keeps nodes that are at the same depth aligned vertically
-    // root height is the greatest distance from any descendant leaf.
-    // node size here is distance between depths
-    let r = root;
-    if (!layoutType || layoutType !== treeType) {
-      const treeLayout = treeFn<Data>().size([size, size]);
-      r = treeLayout(d3.hierarchy(data)); // set x/y
-
-      // Height is number of nodes with root at the top, leaves at the bottom.
-      // Every node get's a padding for the circle
-      // the node height =  MARGIN. For length, we want to compensate for label
-      treeLayout.nodeSize([MARGIN, size / r.height - labelLength])(r);
-
-      let nodeLength = labelLength;
-      if (!layoutType) {
-        nodeLength = createNodes(r.descendants());
-      }
-
-      // recalculating nodeSize so that the nodes are not pushed outside view
-      treeLayout.nodeSize([MARGIN, size / r.height - nodeLength / 2])(r);
-      // Center the tree
-      // if the tree is left/right (it is), x is used to calculate height
-      let x0 = size;
-      let x1 = -size;
-      r.each((d) => {
-        if (d.x > x1) x1 = Math.ceil(d.x);
-        if (d.x < x0) x0 = Math.ceil(d.x);
-      });
-
-      // We let tree height be dynamic to keep the margins and size
-      const height = x1 - x0 + MARGIN * 2;
-
-      const rootElement = d3.select(nodesRef.current).selectChild().node() as SVGGraphicsElement;
-
-      // its better to adjust position with translate then changing the viewport
-      setStartPosition(
-        `translate(${Math.ceil(rootElement?.getBBox()?.width ?? nodeLength + MARGIN)},${
-          -x0 + MARGIN
-        })`
-      );
-      const svg = d3.select(svgRef.current);
-      svg.attr('height', () => height);
-      svg.attr('viewBox', () => [0, 0, size, height]);
-      setLabelLength(nodeLength);
-      setRoot(r);
-      setLayoutType(treeType);
-    }
-    setTreeNodes(tidyTree, r);
-
-    return r;
-  };
-
   const setStartPosition = (transform: string) => {
     d3.select(linesRef.current).transition().duration(ANIMATION_TIMER).attr('transform', transform);
     d3.select(nodesRef.current).transition().duration(ANIMATION_TIMER).attr('transform', transform);
   };
 
-  const setLayoutRadial = () => {
+  const setTreeLayout = (v) => {
+    const treeFn = v === 'tree' ? d3.tree : d3.cluster;
+    variant = v;
+    // Compute the layout.
+    // d3.tree returns a layout function that sets the x and y coordinates for each node in the hierarchy in a manner that keeps nodes that are at the same depth aligned vertically
+    // root height is the greatest distance from any descendant leaf.
+    // node size here is distance between depths
     let r = root;
-    if (layoutType !== 'radial') {
-      const radius = (size - labelLength) / 2;
+    const treeLayout = treeFn<Data>().size([size, size]);
+    r = treeLayout(d3.hierarchy(data)).sort((a, b) => d3.descending(a.height, b.height)); // set x/y
 
-      const treeLayout = d3
-        .tree<Data>()
-        .size([2 * Math.PI, radius])
-        .separation((a, b) => (a.parent == b.parent ? 1 : 2) / a.depth);
+    // Height is number of nodes with root at the top, leaves at the bottom.
+    // Every node get's a padding for the circle
+    // the node height =  MARGIN. For length, we want to compensate for label
+    treeLayout.nodeSize([MARGIN, size / r.height - labelLength])(r);
 
-      r = treeLayout(d3.hierarchy(data));
-
-      let nodeLength = labelLength;
-      if (!layoutType) {
-        nodeLength = createNodes(r.descendants());
-      }
-      setStartPosition(
-        `translate(${(size + nodeLength) / 2 + MARGIN},${(size + nodeLength) / 2 + MARGIN})`
-      );
-
-      setLabelLength(nodeLength);
-      setRoot(r);
+    let nodeLength = labelLength;
+    if (!layoutType) {
+      nodeLength = createNodes(r.descendants());
     }
+
+    // recalculating nodeSize so that the nodes are not pushed outside view
+    treeLayout.nodeSize([MARGIN, size / r.height - nodeLength / 2])(r);
+    // Center the tree
+    // if the tree is left/right (it is), x is used to calculate height
+    let x0 = size;
+    let x1 = -size;
+    r.each((d) => {
+      if (d.x > x1) x1 = Math.ceil(d.x);
+      if (d.x < x0) x0 = Math.ceil(d.x);
+    });
+
+    // We let tree height be dynamic to keep the margins and size
+    const height = x1 - x0 + MARGIN * 2;
+
+    const rootElement = d3.select(nodesRef.current).selectChild().node() as SVGGraphicsElement;
+
+    // its better to adjust position with translate then changing the viewport
+    setStartPosition(
+      `translate(${Math.ceil(rootElement?.getBBox()?.width ?? nodeLength + MARGIN)},${
+        -x0 + MARGIN
+      })`
+    );
+    const svg = d3.select(svgRef.current);
+    svg.attr('height', () => height);
+    svg.attr('viewBox', () => [0, 0, size + labelLength, height]);
+    setLabelLength(nodeLength);
+    setRoot(r);
+    setLayoutType('tidy');
+
+    setTreeNodes(tidyTree, r);
+
+    return r;
+  };
+
+  const setLayoutRadial = (v: 'tree' | 'cluster') => {
+    const treeFn = v === 'tree' ? d3.tree : d3.cluster;
+    let r = root;
+
+    variant = v;
+    const radius = (size - labelLength) / 2;
+
+    const hirarchy = d3.hierarchy(data);
+    const treeLayout = treeFn<Data>()
+      .size([2 * Math.PI, radius])
+      .separation((a, b) => (a.parent == b.parent ? 1 : 2) / a.depth);
+
+    r = treeLayout(hirarchy).sort((a, b) => d3.descending(a.height, b.height));
+
+    let nodeLength = labelLength;
+    if (!layoutType) {
+      nodeLength = createNodes(r.descendants());
+    }
+    setStartPosition(
+      `translate(${(size + nodeLength) / 2 + MARGIN},${(size + nodeLength) / 2 + MARGIN})`
+    );
+
+    setLabelLength(nodeLength);
+    setRoot(r);
 
     const svg = d3.select(svgRef.current);
     svg.attr('height', size);
-    svg.attr('viewBox', [0, 0, size, size]);
+    svg.attr('viewBox', [0, 0, size + labelLength, size + labelLength * 2]);
     setTreeNodes(radialTree, r);
     setLayoutType('radial');
-  };
-
-  const sortNodes = (sorter) => {
-    let l;
-    switch (layoutType) {
-      case 'tidy':
-        l = tidyTree;
-        break;
-      case 'radial':
-        l = radialTree;
-        break;
-      default:
-        l = tidyTree;
-    }
-    sorter(root);
-    setTreeNodes(l, root);
   };
 
   return (
     <>
       <div className="settings">
-        <button onClick={() => sortNodes(sortHeight)}>Sort by height</button>
-        <button onClick={() => sortNodes(sortValue)}>Sort by value</button>
-        <button className={layoutType === 'tidy' ? 'active' : ''} onClick={() => setTreeLayout()}>
+        <button
+          className={layoutType === 'tidy' ? 'active' : ''}
+          onClick={() => setTreeLayout('tree')}
+        >
           layout Tree
         </button>
-        <button className={layoutType === 'radial' ? 'active' : ''} onClick={setLayoutRadial}>
+        <button
+          className={layoutType === 'radial' ? 'active' : ''}
+          onClick={() => setLayoutRadial('tree')}
+        >
           layout Radial
         </button>
         <div>
           <button
-            className={layoutType === 'cluster' ? 'active' : ''}
-            onClick={() => setTreeLayout('cluster')}
+            className={variant === 'cluster' ? 'active' : ''}
+            onClick={() =>
+              layoutType === 'tidy' ? setTreeLayout('cluster') : setLayoutRadial('cluster')
+            }
           >
             layout Cluster
           </button>

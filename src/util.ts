@@ -8,7 +8,7 @@ export interface Data {
 }
 
 export const sortValue = (root: d3.HierarchyNode<Data>) =>
-  root.sort((a, b) => d3.descending(a.height, b.height));
+  root.sum((d) => d.value).sort((a, b) => d3.descending(a.height, b.height));
 
 export const sortHeight = (root: d3.HierarchyNode<Data>) =>
   root.sum((d) => d.value).sort((a, b) => b.value - a.value);
