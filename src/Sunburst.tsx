@@ -4,9 +4,8 @@ import { Data, sortHeight } from './util';
 
 export const Sunburst = ({ data, size }: { data: Data; size: number }) => {
   const ref = useRef<SVGSVGElement>(null);
-  const width = size;
 
-  const radius = width / 6;
+  const radius = size / 6;
 
   const root: d3.HierarchyRectangularNode<Data> = useMemo(() => {
     const p = d3.hierarchy(data);
@@ -42,10 +41,7 @@ export const Sunburst = ({ data, size }: { data: Data; size: number }) => {
   useLayoutEffect(() => {
     const color = d3.scaleOrdinal(d3.quantize(d3.interpolateRainbow, data.children.length + 1));
 
-    const g = d3
-      .select(ref.current)
-      .append('g')
-      .attr('transform', `translate(${width / 2},${width / 2})`);
+    const g = d3.select(ref.current).attr('transform', `translate(${size / 2},${size / 2})`);
 
     const path = g
       .append('g')
@@ -74,11 +70,13 @@ export const Sunburst = ({ data, size }: { data: Data; size: number }) => {
       .data(root.descendants().slice(1))
       .join('text')
       .attr('font-size', (d) => {
-        return `${Math.min(Math.round((d.x1 - d.x0) * radius + 2), 16)}px`;
+        return `${Math.min(Math.floor((d.x1 - d.x0) * radius + 2), 14)}px`;
       })
       .attr('fill-opacity', (d) => +labelVisible(d.data.current))
       .attr('transform', (d) => labelTransform(d.data.current))
       .text((d) => d.data.name);
+
+    g.append('text').text(root.data.name).attr('text-anchor', 'middle').attr('font-size', '18px');
 
     const parent = g
       .append('circle')
@@ -86,6 +84,7 @@ export const Sunburst = ({ data, size }: { data: Data; size: number }) => {
       .attr('r', radius)
       .attr('fill', 'none')
       .attr('pointer-events', 'all')
+      .attr('cursor', (d) => (d.depth > 0 ? 'pointer' : 'default'))
       .on('click', (_, p) => clicked(p, parent, g, path, label));
 
     return () => {
@@ -96,7 +95,19 @@ export const Sunburst = ({ data, size }: { data: Data; size: number }) => {
   function clicked(p, parent, g, path, label) {
     // p is the clicked element
     // parent of the clicked node should be center
-    // parent.datum(p.parent || root);
+    parent.datum(p?.parent || root);
+    const text = g.selectChild('text').attr('opacity', 0);
+    text
+      .text(() => {
+        return `${p
+          .ancestors()
+          .map((d) => d.data.name)
+          .reverse()
+          .join('/')}`;
+      })
+      .transition()
+      .duration(750)
+      .attr('opacity', 1);
 
     // for x: we are building left and right curve from the clicked element.
     // It needs to grow to fill the same percantage of the parent.
@@ -127,7 +138,7 @@ export const Sunburst = ({ data, size }: { data: Data; size: number }) => {
       .transition(t)
       .attr(
         'font-size',
-        (d) => `${Math.min(Math.round((d.data.target.x1 - d.data.target.x0) * radius + 2), 14)}px`
+        (d) => `${Math.min(Math.floor((d.data.target.x1 - d.data.target.x0) * radius + 2), 14)}px`
       )
       .attr('fill-opacity', (d) => +labelVisible(d.data.target))
       .attrTween('transform', (d) => () => labelTransform(d.data.current));
@@ -136,12 +147,9 @@ export const Sunburst = ({ data, size }: { data: Data; size: number }) => {
   return (
     <>
       <div className="container" style={{ margin: '10px' }}>
-        <svg
-          width={`${size}px`}
-          height={`${size}px`}
-          viewBox={`0 0 ${size} ${size}`}
-          ref={ref}
-        ></svg>
+        <svg width={`${size}px`} height={`${size}px`} viewBox={`0 0 ${size} ${size}`}>
+          <g ref={ref}></g>
+        </svg>
       </div>
     </>
   );
