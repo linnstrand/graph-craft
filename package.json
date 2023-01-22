@@ -1,7 +1,8 @@
 {
-  "name": "grapher",
+  "name": "graph-craft",
   "version": "0.1.0",
   "private": true,
+  "homepage": "https://linnstrand.github.io/graph-craft",
   "dependencies": {
     "d3": "7.8.0",
     "react": "^18.2.0",
@@ -11,6 +12,8 @@
     "web-vitals": "^2.1.0"
   },
   "scripts": {
+    "predeploy": "npm run build",
+    "deploy": "gh-pages -d build",
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
@@ -41,6 +44,7 @@
     "@typescript-eslint/parser": "^5.48.0",
     "eslint": "^8.31.0",
     "eslint-plugin-react": "^7.31.11",
-    "eslint-plugin-react-hooks": "^4.6.0"
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "gh-pages": "^5.0.0"
   }
 }
