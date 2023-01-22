@@ -2,44 +2,6 @@
   margin: 0;
 }
 
-nav {
-  display: flex;
-  align-items: center;
-  padding: 0 0 0 16px;
-}
-
-nav ul,
-.settings {
-  display: flex;
-  flex-direction: row;
-  padding-left: 0;
-  margin: 0;
-  list-style: none;
-}
-
-nav button,
-.settings button {
-  box-sizing: border-box;
-  margin: 0;
-  border: none;
-  text-transform: none;
-  display: inline-block;
-  background-color: transparent;
-  cursor: pointer;
-  padding: 6px;
-  color: black;
-}
-
-nav button:hover,
-.settings button:hover {
-  color: blue;
-}
-
-nav button.active,
-.settings button.active {
-  color: rgb(132, 132, 132);
-}
-
 .tree-container {
   display: flex;
   position: relative;

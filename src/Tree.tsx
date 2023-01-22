@@ -228,17 +228,20 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
   return (
     <>
       <div className="settings">
-        <button onClick={() => sortNodes(sortHeight)}>Sort height</button>
-        <button onClick={() => sortNodes(sortValue)}>Sort Value</button>
-        <button onClick={() => setTreeLayout()}>layoutTree</button>
-        <button onClick={setLayoutRadial}>layoutRadial</button>
+        <button onClick={() => sortNodes(sortHeight)}>Sort by height</button>
+        <button onClick={() => sortNodes(sortValue)}>Sort by value</button>
+        <button className={layoutType === 'tidy' ? 'active' : ''} onClick={() => setTreeLayout()}>
+          layout Tree
+        </button>
+        <button className={layoutType === 'radial' ? 'active' : ''} onClick={setLayoutRadial}>
+          layout Radial
+        </button>
         <div>
           <button
-            onClick={() => {
-              layoutType === 'tidy' ? setTreeLayout('cluster') : setTreeLayout('tidy');
-            }}
+            className={layoutType === 'cluster' ? 'active' : ''}
+            onClick={() => setTreeLayout('cluster')}
           >
-            {layoutType === 'cluster' ? 'Show Tree' : 'Show Cluster'}
+            layout Cluster
           </button>
         </div>
       </div>

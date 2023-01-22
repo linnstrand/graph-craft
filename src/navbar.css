@@ -1,0 +1,48 @@
+nav {
+  display: flex;
+  align-items: center;
+  padding: 0 0 0 16px;
+  background-color: rgb(57 29 133 / 35%);
+}
+
+nav ul {
+  display: flex;
+  flex-direction: row;
+  padding-left: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.settings {
+  display: flex;
+  flex-direction: row;
+  padding: 0 0 0 16px;
+  border-top: 1px solid rgb(92, 12, 126);
+  border-bottom: 2px solid rgba(92, 12, 126, 0.2);
+}
+
+nav button,
+.settings button {
+  box-sizing: border-box;
+  margin: 0;
+  border: none;
+  text-transform: none;
+  display: inline-block;
+  background-color: transparent;
+  cursor: pointer;
+  padding: 6px;
+  color: rgb(26, 7, 34);
+  font-size: 16px;
+}
+
+nav button:hover,
+.settings button:hover {
+  color: rgb(92, 12, 126);
+  text-decoration: underline;
+}
+
+nav button.active,
+.settings button.active {
+  color: rgb(111, 107, 112);
+  text-decoration: none;
+}
