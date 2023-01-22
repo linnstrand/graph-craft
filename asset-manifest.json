@@ -1,15 +1,15 @@
 {
   "files": {
-    "main.css": "/graph-craft/static/css/main.3d10d0ea.css",
-    "main.js": "/graph-craft/static/js/main.646a3d1c.js",
+    "main.css": "/graph-craft/static/css/main.29158d12.css",
+    "main.js": "/graph-craft/static/js/main.bb2163c6.js",
     "static/js/787.fdad715e.chunk.js": "/graph-craft/static/js/787.fdad715e.chunk.js",
     "index.html": "/graph-craft/index.html",
-    "main.3d10d0ea.css.map": "/graph-craft/static/css/main.3d10d0ea.css.map",
-    "main.646a3d1c.js.map": "/graph-craft/static/js/main.646a3d1c.js.map",
+    "main.29158d12.css.map": "/graph-craft/static/css/main.29158d12.css.map",
+    "main.bb2163c6.js.map": "/graph-craft/static/js/main.bb2163c6.js.map",
     "787.fdad715e.chunk.js.map": "/graph-craft/static/js/787.fdad715e.chunk.js.map"
   },
   "entrypoints": [
-    "static/css/main.3d10d0ea.css",
-    "static/js/main.646a3d1c.js"
+    "static/css/main.29158d12.css",
+    "static/js/main.bb2163c6.js"
   ]
 }
