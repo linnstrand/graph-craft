@@ -1,0 +1,15 @@
+{
+  "files": {
+    "main.css": "/graph-craft/static/css/main.3d10d0ea.css",
+    "main.js": "/graph-craft/static/js/main.646a3d1c.js",
+    "static/js/787.fdad715e.chunk.js": "/graph-craft/static/js/787.fdad715e.chunk.js",
+    "index.html": "/graph-craft/index.html",
+    "main.3d10d0ea.css.map": "/graph-craft/static/css/main.3d10d0ea.css.map",
+    "main.646a3d1c.js.map": "/graph-craft/static/js/main.646a3d1c.js.map",
+    "787.fdad715e.chunk.js.map": "/graph-craft/static/js/787.fdad715e.chunk.js.map"
+  },
+  "entrypoints": [
+    "static/css/main.3d10d0ea.css",
+    "static/js/main.646a3d1c.js"
+  ]
+}
