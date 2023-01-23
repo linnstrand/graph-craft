@@ -10,7 +10,15 @@
 
 .lines {
   fill: none;
-  stroke: rgb(102, 102, 102);
   stroke-opacity: 0.6;
   stroke-width: 1;
+}
+
+path.active {
+  stroke: blue;
+}
+
+.active text,
+.active circle {
+  fill: blue;
 }

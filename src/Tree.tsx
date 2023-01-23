@@ -53,6 +53,7 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
     setLayoutRadial('tree');
   }, []);
 
+  const color = d3.scaleOrdinal(d3.quantize(d3.interpolateRainbow, data.children.length + 1));
   const createNodes = (root: d3.HierarchyPointNode<Data>[]) => {
     // we want to set start position, same as nodes
     d3.select(linesRef.current)
@@ -62,7 +63,7 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
         d3
           .linkHorizontal<unknown, unknown>()
           .x(() => 0)
-          .y(() => size - 1 / 2)
+          .y(() => size / 2)
       );
 
     // prevent appending duplicates, since useLayoutEffect runs twice
@@ -101,22 +102,51 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
 
   const setTreeNodes = (tree: GraphLayout, root: d3.HierarchyPointNode<Data>) => {
     // when we change these, we want to move from current to new.
-    d3.select(linesRef.current)
+    const links = d3
+      .select(linesRef.current)
       .selectAll('path')
       .data(() => root.links())
       .join('path')
-      .transition()
-      .duration(ANIMATION_TIMER)
-      .attr('d', tree.link);
+      .attr('stroke', (d) => {
+        let e = d.target;
+        while (e.depth > 1) e = e.parent;
+        return color(e.data.name);
+      });
+    links.transition().duration(ANIMATION_TIMER).attr('d', tree.link);
 
-    d3.select(nodesRef.current)
+    const nodes = d3
+      .select(nodesRef.current)
       .selectAll('g')
       .data(() => root.descendants())
       .join('g')
+      .attr('stroke', (d) => {
+        while (d.depth > 1) d = d.parent;
+        return color(d.data.name);
+      });
+
+    nodes
       .transition()
       .duration(ANIMATION_TIMER)
       .attr('opacity', 1)
       .attr('transform', tree.transform);
+    nodes
+      .on('mouseenter', (e, d) => {
+        const a = d.ancestors();
+        nodes
+          .filter((n) => {
+            return a.indexOf(n) > -1;
+          })
+          .attr('class', 'active');
+        links
+          .filter((n) => {
+            return a.indexOf(n.target) > -1;
+          })
+          .attr('class', 'active');
+      })
+      .on('mouseleave', () => {
+        nodes.attr('class', '');
+        links.attr('class', '');
+      });
   };
 
   const setStartPosition = (transform: string) => {
