@@ -40,7 +40,7 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
 
   const radialTree: GraphLayout = {
     variant: 'radial',
-    transform: (d) => `rotate(${Math.ceil((d.x * 180) / Math.PI - 90)}) translate(${d.y},0)`,
+    transform: (d) => `rotate(${(d.x * 180) / Math.PI - 90}) translate(${d.y},0)`,
     link: d3
       .linkRadial<unknown, d3.HierarchyPointNode<Data>>()
       .angle((d) => d.x)
@@ -62,7 +62,7 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
         d3
           .linkHorizontal<unknown, unknown>()
           .x(() => 0)
-          .y(() => size / 2)
+          .y(() => size - 1 / 2)
       );
 
     // prevent appending duplicates, since useLayoutEffect runs twice
@@ -90,7 +90,6 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
       .attr('paint-order', 'stroke')
       .attr('stroke', '#fff')
       .attr('font-size', FONTSIZE)
-      .attr('stroke-width', 4)
       .text((d) => d.data.name);
 
     // make sure the labels are not pushed outside view
@@ -153,8 +152,8 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
     let x0 = size;
     let x1 = -size;
     r.each((d) => {
-      if (d.x > x1) x1 = Math.ceil(d.x);
-      if (d.x < x0) x0 = Math.ceil(d.x);
+      if (d.x > x1) x1 = d.x;
+      if (d.x < x0) x0 = d.x;
     });
 
     // We let tree height be dynamic to keep the margins and size
@@ -187,7 +186,6 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
 
     let treeLayout = treeFn<Data>().size([2 * Math.PI, size / 2]);
     r = treeLayout(d3.hierarchy(data));
-
     let nodeLength = labelLength;
     if (!layoutType) {
       nodeLength = createNodes(r.descendants());
