@@ -25,7 +25,6 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
   let variant = 'tree';
 
   const [layoutType, setLayoutType] = useState<LayoutT | null>(null);
-
   const [root, setRoot] = useState<d3.HierarchyPointNode<Data | null>>(null);
   const [labelLength, setLabelLength] = useState(60);
 
@@ -47,13 +46,14 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
       .radius((d) => d.y)
   };
 
+  const color = d3.scaleOrdinal(d3.quantize(d3.interpolateRainbow, data.children.length + 1));
+
   useLayoutEffect(() => {
     if (layoutType) return;
-    //  setTreeLayout('tree');
-    setLayoutRadial('tree');
+    setTreeLayout('tree');
+    // setLayoutRadial('tree');
   }, []);
 
-  const color = d3.scaleOrdinal(d3.quantize(d3.interpolateRainbow, data.children.length + 1));
   const createNodes = (root: d3.HierarchyPointNode<Data>[]) => {
     // we want to set start position, same as nodes
     d3.select(linesRef.current)
@@ -79,10 +79,7 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
       .attr('opacity', 0);
 
     // Maybe I should look att enter/exit/update nodes here
-    nodes
-      .append('circle')
-      .attr('fill', (d) => (d.children ? '#999' : '#ccc'))
-      .attr('r', CIRCLE_RADIUS);
+    nodes.append('circle').attr('fill', 'none').attr('r', CIRCLE_RADIUS);
 
     nodes
       .append('text')
@@ -112,6 +109,26 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
         while (e.depth > 1) e = e.parent;
         return color(e.data.name);
       });
+
+    links
+      .on('mouseenter', (e, d) => {
+        const a = d.target.ancestors();
+        nodes
+          .filter((n) => {
+            return a.indexOf(n) > -1;
+          })
+          .attr('class', 'active');
+        links
+          .filter((n) => {
+            return a.indexOf(n.target) > -1;
+          })
+          .attr('class', 'active');
+      })
+      .on('mouseleave', () => {
+        nodes.attr('class', '');
+        links.attr('class', '');
+      });
+
     links.transition().duration(ANIMATION_TIMER).attr('d', tree.link);
 
     const nodes = d3
@@ -125,10 +142,17 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
       });
 
     nodes
+      .selectAll('circle')
+      .data(() => root.descendants())
+      .join('circle')
+      .attr('fill', (d) => (d.children ? '#999' : 'none'));
+
+    nodes
       .transition()
       .duration(ANIMATION_TIMER)
       .attr('opacity', 1)
       .attr('transform', tree.transform);
+
     nodes
       .on('mouseenter', (e, d) => {
         const a = d.ancestors();
@@ -157,13 +181,12 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
   const setTreeLayout = (v) => {
     const treeFn = v === 'tree' ? d3.tree : d3.cluster;
     variant = v;
-    // Compute the layout.
+
     // d3.tree returns a layout function that sets the x and y coordinates for each node in the hierarchy in a manner that keeps nodes that are at the same depth aligned vertically
     // root height is the greatest distance from any descendant leaf.
     // node size here is distance between depths
-    let r = root;
     const treeLayout = treeFn<Data>().size([size, size]);
-    r = treeLayout(d3.hierarchy(data)).sort((a, b) => d3.descending(a.height, b.height)); // set x/y
+    const r = treeLayout(d3.hierarchy(data)).sort((a, b) => d3.descending(a.height, b.height)); // set x/y
 
     // Height is number of nodes with root at the top, leaves at the bottom.
     // Every node get's a padding for the circle
@@ -186,17 +209,15 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
       if (d.x < x0) x0 = d.x;
     });
 
-    // We let tree height be dynamic to keep the margins and size
-    const height = x1 - x0 + MARGIN * 2;
-
     const rootElement = d3.select(nodesRef.current).selectChild().node() as SVGGraphicsElement;
-
     // its better to adjust position with translate then changing the viewport
     setStartPosition(
       `translate(${Math.ceil(rootElement?.getBBox()?.width ?? nodeLength + MARGIN)},${
         -x0 + MARGIN
       })`
     );
+    // We let tree height be dynamic to keep the margins and size
+    const height = x1 - x0 + MARGIN * 2;
     const svg = d3.select(svgRef.current);
     svg.attr('height', () => height);
     svg.attr('viewBox', () => [0, 0, size, height]);

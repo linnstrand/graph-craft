@@ -15,12 +15,12 @@ export const NavBar = ({
             className={graph === 'sunburst' ? 'active' : ''}
             onClick={() => setGraph('sunburst')}
           >
-            Display as Sunburst
+            Sunburst
           </button>
         </li>
         <li>
           <button className={graph === 'tree' ? 'active' : ''} onClick={() => setGraph('tree')}>
-            Display as Tree
+            Tree
           </button>
         </li>
       </ul>
