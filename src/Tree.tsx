@@ -1,7 +1,7 @@
 import * as d3 from 'd3';
 import './tree.css';
 import { useLayoutEffect, useRef, useState } from 'react';
-import { Data, getColor } from './util';
+import { addColor, brighter, Data } from './util';
 
 type LayoutT = 'tidy' | 'radial';
 interface GraphLayout {
@@ -22,8 +22,6 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const nodesRef = useRef<SVGSVGElement>(null);
   const linesRef = useRef<SVGSVGElement>(null);
-
-  const color = getColor(data.children.length);
 
   let variant = 'tree';
 
@@ -51,7 +49,7 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
 
   useLayoutEffect(() => {
     if (layoutType) return;
-    setTreeLayout('tree');
+    setLayoutRadial('tree');
   }, []);
 
   const createNodes = (root: d3.HierarchyPointNode<Data>[]) => {
@@ -97,8 +95,6 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
     });
     return longestLabel.reduce((a, b) => Math.max(a, b));
   };
-
-  const brighter = (color) => d3.rgb(color).brighter(2).formatRgb();
 
   const setTreeNodes = (tree: GraphLayout, root: d3.HierarchyPointNode<Data>) => {
     const hoverEffect = (a: d3.HierarchyPointNode<Data>[], type: string) => {
@@ -177,15 +173,7 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
     // root height is the greatest distance from any descendant leaf.
     // node size here is distance between depths
     const treeLayout = treeFn<Data>().size([size, size]);
-    const r = treeLayout(d3.hierarchy(data)).sort((a, b) => d3.descending(a.height, b.height)); // set x/y
-
-    const setBranchColor = (d, branchColor) => {
-      d.data.color = branchColor;
-      if (!d.children) return;
-      d.children.forEach((c) => setBranchColor(c, branchColor));
-    };
-
-    r.children.forEach((d) => setBranchColor(d, color(d.data.name)));
+    const r = addColor(treeLayout, data);
 
     // Height is number of nodes with root at the top, leaves at the bottom.
     // Every node get's a padding for the circle
@@ -235,7 +223,8 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
     variant = v;
 
     let treeLayout = treeFn<Data>().size([2 * Math.PI, size / 2]);
-    r = treeLayout(d3.hierarchy(data));
+    r = addColor(treeLayout, data);
+    //  r = treeLayout(d3.hierarchy(data));
     let nodeLength = labelLength;
     if (!layoutType) {
       nodeLength = createNodes(r.descendants());

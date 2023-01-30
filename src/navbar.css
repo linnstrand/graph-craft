@@ -2,7 +2,6 @@ nav {
   display: flex;
   align-items: center;
   padding: 0 0 0 16px;
-  background-color: rgb(57 29 133 / 35%);
 }
 
 nav ul {
@@ -17,8 +16,8 @@ nav ul {
   display: flex;
   flex-direction: row;
   padding: 0 0 0 16px;
-  border-top: 1px solid rgb(92, 12, 126);
-  border-bottom: 2px solid rgba(92, 12, 126, 0.2);
+  border-top: 1px solid #bbb;
+  border-bottom: 1px solid #bbb;
 }
 
 nav button,
@@ -31,18 +30,16 @@ nav button,
   background-color: transparent;
   cursor: pointer;
   padding: 6px;
-  color: rgb(26, 7, 34);
+  color: #bbb;
   font-size: 16px;
 }
 
 nav button:hover,
 .settings button:hover {
-  color: rgb(92, 12, 126);
-  text-decoration: underline;
+  color: #eee;
 }
 
 nav button.active,
 .settings button.active {
-  color: rgb(111, 107, 112);
-  text-decoration: none;
+  color: #eee;
 }

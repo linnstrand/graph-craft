@@ -8,12 +8,27 @@ export interface Data {
   color?: string;
 }
 
+export const brighter = (color) => d3.rgb(color).brighter(2).formatRgb();
+
 export const sortValue = (root: d3.HierarchyNode<Data>) =>
   root.sum((d) => d.value).sort((a, b) => d3.descending(a.height, b.height));
 
 export const sortHeight = (root: d3.HierarchyNode<Data>) =>
   root.sum((d) => d.value).sort((a, b) => b.value - a.value);
 
+export const addColor = (treeLayout: d3.TreeLayout<Data>, data: Data) => {
+  const color = getColor(data.children.length);
+  const r = treeLayout(d3.hierarchy(data)).sort((a, b) => d3.descending(a.height, b.height)); // set x/y
+
+  const setBranchColor = (d, branchColor) => {
+    d.data.color = branchColor;
+    if (!d.children) return;
+    d.children.forEach((c) => setBranchColor(c, branchColor));
+  };
+
+  r.children.forEach((d) => setBranchColor(d, color(d.data.name)));
+  return r;
+};
 // COLOR!
 // ordinal scales have a discrete domain and range
 // quantize: Quantize scales are similar to linear scales, except they use a discrete rather than continuous range. Returns uniformly-spaced samples from the specified interpolator
