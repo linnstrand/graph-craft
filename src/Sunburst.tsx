@@ -38,9 +38,18 @@ export const Sunburst = ({ data, size }: { data: Data; size: number }) => {
     return `rotate(${x - 90}) translate(${y},0) rotate(${x < 180 ? 0 : 180})`;
   }
 
-  useLayoutEffect(() => {
-    const color = d3.scaleOrdinal(d3.quantize(d3.interpolateRainbow, data.children.length + 1));
+  // COLOR!
+  // ordinal scales have a discrete domain and range
+  // quantize: Quantize scales are similar to linear scales, except they use a discrete rather than continuous range. Returns uniformly-spaced samples from the specified interpolator
 
+  // interpolateRainbow: Cyclical. (interpolateSinebow is an alternative)
+  // Given a number t in the range [0,1], returns the corresponding color from d3.interpolateWarm scale from [0.0, 0.5] followed by the d3.interpolateCool scale from [0.5, 1.0],
+  // thus implementing the cyclical less-angry rainbow color scheme.
+
+  // This means that colors without children are muted
+  const color = d3.scaleOrdinal(d3.quantize(d3.interpolateRainbow, data.children.length + 1));
+
+  useLayoutEffect(() => {
     const g = d3.select(ref.current).attr('transform', `translate(${size / 2},${size / 2})`);
 
     const path = g
@@ -52,7 +61,7 @@ export const Sunburst = ({ data, size }: { data: Data; size: number }) => {
         while (d.depth > 1) d = d.parent;
         return color(d.data.name);
       })
-      .attr('fill-opacity', (d) => (arcVisible(d.data.current) ? (d.children ? 0.6 : 0.4) : 0))
+      .attr('fill-opacity', (d) => (arcVisible(d.data.current) ? (d.children ? 0.7 : 0.5) : 0))
       .attr('pointer-events', (d) => (arcVisible(d.data.current) ? 'auto' : 'none'))
       .attr('d', (d) => arc(d.data.current));
 

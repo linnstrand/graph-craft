@@ -15,6 +15,8 @@ interface GraphLayout {
 const MARGIN = 11;
 const CIRCLE_RADIUS = 3;
 const FONTSIZE = 10;
+const FONTCOLOR = '#eee';
+const BACKGROUNDCOLOR = '#ccc';
 const ANIMATION_TIMER = 1000;
 
 export const Tree = ({ data, size }: { data: Data; size: number }) => {
@@ -46,6 +48,15 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
       .radius((d) => d.y)
   };
 
+  // COLOR!
+  // ordinal scales have a discrete domain and range
+  // quantize: Quantize scales are similar to linear scales, except they use a discrete rather than continuous range. Returns uniformly-spaced samples from the specified interpolator
+
+  // interpolateRainbow: Cyclical. (interpolateSinebow is an alternative)
+  // Given a number t in the range [0,1], returns the corresponding color from d3.interpolateWarm scale from [0.0, 0.5] followed by the d3.interpolateCool scale from [0.5, 1.0],
+  // thus implementing the cyclical less-angry rainbow color scheme.
+
+  // This means that colors without children are muted
   const color = d3.scaleOrdinal(d3.quantize(d3.interpolateRainbow, data.children.length + 1));
 
   useLayoutEffect(() => {
@@ -86,7 +97,7 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
       .attr('x', (d) => (d.children ? -6 : 6))
       .attr('text-anchor', (d) => (d.children ? 'end' : 'start'))
       .attr('paint-order', 'stroke')
-      .attr('stroke', '#fff')
+      .attr('fill', FONTCOLOR)
       .attr('font-size', FONTSIZE)
       .text((d) => d.data.name);
 
@@ -110,24 +121,10 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
         return color(e.data.name);
       });
 
-    links
-      .on('mouseenter', (e, d) => {
-        const a = d.target.ancestors();
-        nodes
-          .filter((n) => {
-            return a.indexOf(n) > -1;
-          })
-          .attr('class', 'active');
-        links
-          .filter((n) => {
-            return a.indexOf(n.target) > -1;
-          })
-          .attr('class', 'active');
-      })
-      .on('mouseleave', () => {
-        nodes.attr('class', '');
-        links.attr('class', '');
-      });
+    links.on('mouseover mouseout mousedown', (e, d) => {
+      const a = d.target.ancestors();
+      return hoverEffect(a);
+    });
 
     links.transition().duration(ANIMATION_TIMER).attr('d', tree.link);
 
@@ -135,17 +132,29 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
       .select(nodesRef.current)
       .selectAll('g')
       .data(() => root.descendants())
-      .join('g')
-      .attr('stroke', (d) => {
-        while (d.depth > 1) d = d.parent;
-        return color(d.data.name);
-      });
+      .join('g');
+
+    const hoverEffect = (active: d3.HierarchyPointNode<Data>[]) => {
+      nodes
+        .filter((n) => {
+          return active.indexOf(n) > -1;
+        })
+        .selectAll('text')
+        .attr('fill', 'blue');
+      links
+        .filter((n) => {
+          return active.indexOf(n.target) > -1;
+        })
+        .attr('stroke', 'blue');
+    };
 
     nodes
       .selectAll('circle')
-      .data(() => root.descendants())
-      .join('circle')
-      .attr('fill', (d) => (d.children ? '#999' : 'none'));
+      .attr('fill', (d: d3.HierarchyPointNode<Data>) => (d.children ? '#999' : 'none'))
+      .attr('stroke', (d: d3.HierarchyPointNode<Data>) => {
+        while (d.depth > 1) d = d.parent;
+        return color(d.data.name);
+      });
 
     nodes
       .transition()
@@ -153,24 +162,10 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
       .attr('opacity', 1)
       .attr('transform', tree.transform);
 
-    nodes
-      .on('mouseenter', (e, d) => {
-        const a = d.ancestors();
-        nodes
-          .filter((n) => {
-            return a.indexOf(n) > -1;
-          })
-          .attr('class', 'active');
-        links
-          .filter((n) => {
-            return a.indexOf(n.target) > -1;
-          })
-          .attr('class', 'active');
-      })
-      .on('mouseleave', () => {
-        nodes.attr('class', '');
-        links.attr('class', '');
-      });
+    nodes.on('mouseover mouseout mousedown', (_, d) => {
+      const a = d.ancestors();
+      return hoverEffect(a);
+    });
   };
 
   const setStartPosition = (transform: string) => {
