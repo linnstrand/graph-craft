@@ -1,6 +1,6 @@
 import * as d3 from 'd3';
 import './tree.css';
-import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { Data } from './util';
 
 type LayoutT = 'tidy' | 'radial';
@@ -33,19 +33,7 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
   // This means that colors without children are muted
 
   // we want one color base for every child of parent
-  const quant = d3.quantize(d3.interpolateRainbow, data.children.length + 1);
-  const color = d3.scaleOrdinal(quant);
-
-  const coloredData = useMemo(() => {
-    const recursive = (d, branchColor) => {
-      d.color = branchColor;
-      d.children?.forEach((c) => recursive(c, branchColor));
-    };
-
-    const treated = { ...data };
-    treated.children.forEach((d) => recursive(d, color(d.name)));
-    return treated;
-  }, [data]);
+  const color = d3.scaleOrdinal(d3.quantize(d3.interpolateRainbow, data.children.length + 1));
 
   let variant = 'tree';
 
@@ -81,7 +69,6 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
     // we want to set start position, same as nodes
     d3.select(linesRef.current)
       .selectAll('path')
-      .attr('stroke', (d: d3.HierarchyPointLink<Data>) => d.target.data.color)
       .attr(
         'd',
         d3
@@ -100,9 +87,7 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
       .data(() => root)
       .join('g')
       .attr('transform', `translate(0, ${size / 2})`)
-      .attr('opacity', 0)
-      .attr('fill', (d: d3.HierarchyPointNode<Data>) => d.data.color)
-      .attr('stroke', (d: d3.HierarchyPointNode<Data>) => d.data.color);
+      .attr('opacity', 0);
 
     // Maybe I should look att enter/exit/update nodes here
     nodes.append('circle').attr('r', CIRCLE_RADIUS);
@@ -130,14 +115,17 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
       .select(linesRef.current)
       .selectAll('path')
       .data(() => root.links())
-      .join('path');
+      .join('path')
+      .attr('stroke', (d: d3.HierarchyPointLink<Data>) => d.target.data.color);
     links.transition().duration(ANIMATION_TIMER).attr('d', tree.link);
 
     const nodes = d3
       .select(nodesRef.current)
       .selectAll('g')
       .data(() => root.descendants())
-      .join('g');
+      .join('g')
+      .attr('fill', (d: d3.HierarchyPointNode<Data>) => d.data.color)
+      .attr('stroke', (d: d3.HierarchyPointNode<Data>) => d.data.color);
 
     const hoverEffect = (a: d3.HierarchyPointNode<Data>[], type: string) => {
       if (type === 'mouseenter') {
@@ -193,9 +181,26 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
     // root height is the greatest distance from any descendant leaf.
     // node size here is distance between depths
     const treeLayout = treeFn<Data>().size([size, size]);
-    const r = treeLayout(d3.hierarchy(coloredData)).sort((a, b) =>
-      d3.descending(a.height, b.height)
-    ); // set x/y
+    const r = treeLayout(d3.hierarchy(data)).sort((a, b) => d3.descending(a.height, b.height)); // set x/y
+
+    const recursive = (d, branchColor) => {
+      d.data.color = branchColor;
+      if (!d.children) return;
+      d.children.forEach((c) => recursive(c, branchColor));
+    };
+
+    r.children.forEach((d) => recursive(d, color(d.data.name)));
+
+    // r.children.forEach((e: d3.HierarchyPointNode<Data>) => {
+    //   const recursive = (d, branchColor) => {
+    //     d.data.color = branchColor;
+    //     if (!d.children) return;
+    //     d.children.forEach((c) => recursive(c, branchColor));
+    //   };
+
+    //   e.children.forEach((d) => recursive(d, color(e.data.name)));
+    // });
+
     // Height is number of nodes with root at the top, leaves at the bottom.
     // Every node get's a padding for the circle
     // the node height =  MARGIN. For length, we want to compensate for label
@@ -244,7 +249,7 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
     variant = v;
 
     let treeLayout = treeFn<Data>().size([2 * Math.PI, size / 2]);
-    r = treeLayout(d3.hierarchy(coloredData));
+    r = treeLayout(d3.hierarchy(data));
     let nodeLength = labelLength;
     if (!layoutType) {
       nodeLength = createNodes(r.descendants());
@@ -253,7 +258,7 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
       .size([2 * Math.PI, (size - nodeLength * 2) / 2])
       .separation((a, b) => (a.parent == b.parent ? 1 : 2) / a.depth);
 
-    r = treeLayout(d3.hierarchy(coloredData)).sort((a, b) => d3.descending(a.height, b.height));
+    r = treeLayout(d3.hierarchy(data)).sort((a, b) => d3.descending(a.height, b.height));
     setStartPosition(`translate(${size / 2},${size / 2})`);
 
     setLabelLength(nodeLength);
