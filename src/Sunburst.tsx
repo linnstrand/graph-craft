@@ -6,11 +6,24 @@ export const Sunburst = ({ data, size }: { data: Data; size: number }) => {
   const ref = useRef<SVGSVGElement>(null);
 
   const radius = size / 6;
+  const color = getColor(data.children.length);
 
   const root: d3.HierarchyRectangularNode<Data> = useMemo(() => {
     const hirarchy = d3.hierarchy(data);
     sortHeight(hirarchy);
     const partition = d3.partition<Data>().size([2 * Math.PI, hirarchy.height + 1])(hirarchy);
+
+    const setBranchColor = (d, branchColor) => {
+      const { l, c, h } = d3.lch(branchColor);
+      if (!d.children) {
+        d.data.color = d3.lch(l + 15, c, h);
+        return;
+      }
+      d.data.color = d3.lch(l + 5, c - 10, h);
+      d.children.forEach((c) => setBranchColor(c, branchColor));
+    };
+
+    partition.children.forEach((d) => setBranchColor(d, color(d.data.name)));
     return partition.each((d) => (d.data.current = d));
   }, [data, size]);
 
@@ -24,9 +37,11 @@ export const Sunburst = ({ data, size }: { data: Data; size: number }) => {
     .innerRadius((d) => d.y0 * radius) // radius for the inside of the circle
     .outerRadius((d) => Math.max(d.y0 * radius, d.y1 * radius - 1)); // radius for outside
 
+  // We only want to show 3 rings
   const arcVisible = (d: d3.HierarchyRectangularNode<Data>) =>
     d.y1 <= 3 && d.y0 >= 1 && d.x1 > d.x0;
 
+  // Hide labels that doesn't fit
   const labelVisible = (d: d3.HierarchyRectangularNode<Data>) =>
     d.y1 <= 3 && d.y0 >= 1 && (d.y1 - d.y0) * (d.x1 - d.x0) > 0.03;
 
@@ -38,8 +53,6 @@ export const Sunburst = ({ data, size }: { data: Data; size: number }) => {
     return `rotate(${x - 90}) translate(${y},0) rotate(${x < 180 ? 0 : 180})`;
   }
 
-  const color = getColor(data.children.length);
-
   useLayoutEffect(() => {
     const g = d3.select(ref.current).attr('transform', `translate(${size / 2},${size / 2})`);
 
@@ -48,11 +61,8 @@ export const Sunburst = ({ data, size }: { data: Data; size: number }) => {
       .selectAll('path')
       .data(root.descendants().slice(1))
       .join('path')
-      .attr('fill', (d) => {
-        while (d.depth > 1) d = d.parent;
-        return color(d.data.name);
-      })
-      .attr('fill-opacity', (d) => (arcVisible(d.data.current) ? (d.children ? 0.7 : 0.5) : 0))
+      .attr('fill', (d) => d.data.color)
+      .attr('fill-opacity', (d) => (arcVisible(d.data.current) ? 1 : 0))
       .attr('pointer-events', (d) => (arcVisible(d.data.current) ? 'auto' : 'none'))
       .attr('d', (d) => arc(d.data.current));
 
@@ -76,7 +86,11 @@ export const Sunburst = ({ data, size }: { data: Data; size: number }) => {
       .attr('transform', (d) => labelTransform(d.data.current))
       .text((d) => d.data.name);
 
-    g.append('text').text(root.data.name).attr('text-anchor', 'middle').attr('font-size', '18px');
+    g.append('text')
+      .text(root.data.name)
+      .attr('text-anchor', 'middle')
+      .attr('font-size', '18px')
+      .attr('fill', '#ccc');
 
     const parent = g
       .append('circle')
@@ -130,7 +144,7 @@ export const Sunburst = ({ data, size }: { data: Data; size: number }) => {
         const i = d3.interpolate(d.data.current, d.data.target);
         return (time) => (d.data.current = i(time));
       })
-      .attr('fill-opacity', (d) => (arcVisible(d.data.target) ? (d.children ? 0.6 : 0.4) : 0))
+      .attr('fill-opacity', (d) => (arcVisible(d.data.target) ? 1 : 0))
       .attr('pointer-events', (d) => (arcVisible(d.data.target) ? 'auto' : 'none'))
       .attrTween('d', (d) => () => arc(d.data.current));
 

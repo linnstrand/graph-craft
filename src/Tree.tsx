@@ -98,15 +98,30 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
     return longestLabel.reduce((a, b) => Math.max(a, b));
   };
 
+  const brighter = (color) => d3.rgb(color).brighter(2).formatRgb();
+
   const setTreeNodes = (tree: GraphLayout, root: d3.HierarchyPointNode<Data>) => {
     const hoverEffect = (a: d3.HierarchyPointNode<Data>[], type: string) => {
       if (type === 'mouseenter') {
-        nodes.filter((n) => a.indexOf(n) > -1).attr('stroke', 'blue');
-        links.filter((n) => a.indexOf(n.target) > -1).attr('stroke', 'blue');
+        const activeNodes = nodes.filter((n) => a.indexOf(n) > -1);
+        activeNodes
+          .attr('fill', (d) => brighter(d.data.color))
+          .attr('stroke', (d) => brighter(d.data.color));
+        activeNodes.selectChild('text').attr('stroke', (d) => brighter(d.data.color));
+        links
+          .filter((n) => a.indexOf(n.target) > -1)
+          .attr('stroke', (d) => brighter(d.target.data.color));
       } else {
-        nodes.attr('fill', (d: d3.HierarchyPointNode<Data>) => d.data.color);
-        nodes.attr('stroke', (d: d3.HierarchyPointNode<Data>) => d.data.color);
-        links.attr('stroke', (d) => d.target.data.color);
+        nodes
+          .transition()
+          .duration(150)
+          .attr('fill', (d: d3.HierarchyPointNode<Data>) => d.data.color)
+          .attr('stroke', (d: d3.HierarchyPointNode<Data>) => d.data.color);
+        nodes.selectChild('text').attr('stroke', 'none');
+        links
+          .transition()
+          .duration(150)
+          .attr('stroke', (d) => d.target.data.color);
       }
     };
 
