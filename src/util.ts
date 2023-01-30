@@ -5,6 +5,7 @@ export interface Data {
   target?: Partial<d3.HierarchyRectangularNode<Data>>;
   current?: d3.HierarchyRectangularNode<Data>;
   children?: Data[];
+  color?: string;
 }
 
 export const sortValue = (root: d3.HierarchyNode<Data>) =>
