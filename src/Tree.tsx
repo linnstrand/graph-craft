@@ -1,7 +1,7 @@
 import * as d3 from 'd3';
 import './tree.css';
 import { useLayoutEffect, useRef, useState } from 'react';
-import { Data } from './util';
+import { Data, getColor } from './util';
 
 type LayoutT = 'tidy' | 'radial';
 interface GraphLayout {
@@ -22,18 +22,8 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const nodesRef = useRef<SVGSVGElement>(null);
   const linesRef = useRef<SVGSVGElement>(null);
-  // COLOR!
-  // ordinal scales have a discrete domain and range
-  // quantize: Quantize scales are similar to linear scales, except they use a discrete rather than continuous range. Returns uniformly-spaced samples from the specified interpolator
 
-  // interpolateRainbow: Cyclical. (interpolateSinebow is an alternative)
-  // Given a number t in the range [0,1], returns the corresponding color from d3.interpolateWarm scale from [0.0, 0.5] followed by the d3.interpolateCool scale from [0.5, 1.0],
-  // thus implementing the cyclical less-angry rainbow color scheme.
-
-  // This means that colors without children are muted
-
-  // we want one color base for every child of parent
-  const color = d3.scaleOrdinal(d3.quantize(d3.interpolateRainbow, data.children.length + 1));
+  const color = getColor(data.children.length);
 
   let variant = 'tree';
 
@@ -62,7 +52,6 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
   useLayoutEffect(() => {
     if (layoutType) return;
     setTreeLayout('tree');
-    // setLayoutRadial('tree');
   }, []);
 
   const createNodes = (root: d3.HierarchyPointNode<Data>[]) => {
@@ -110,6 +99,17 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
   };
 
   const setTreeNodes = (tree: GraphLayout, root: d3.HierarchyPointNode<Data>) => {
+    const hoverEffect = (a: d3.HierarchyPointNode<Data>[], type: string) => {
+      if (type === 'mouseenter') {
+        nodes.filter((n) => a.indexOf(n) > -1).attr('stroke', 'blue');
+        links.filter((n) => a.indexOf(n.target) > -1).attr('stroke', 'blue');
+      } else {
+        nodes.attr('fill', (d: d3.HierarchyPointNode<Data>) => d.data.color);
+        nodes.attr('stroke', (d: d3.HierarchyPointNode<Data>) => d.data.color);
+        links.attr('stroke', (d) => d.target.data.color);
+      }
+    };
+
     // when we change these, we want to move from current to new.
     const links = d3
       .select(linesRef.current)
@@ -117,6 +117,7 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
       .data(() => root.links())
       .join('path')
       .attr('stroke', (d: d3.HierarchyPointLink<Data>) => d.target.data.color);
+
     links.transition().duration(ANIMATION_TIMER).attr('d', tree.link);
 
     const nodes = d3
@@ -126,26 +127,6 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
       .join('g')
       .attr('fill', (d: d3.HierarchyPointNode<Data>) => d.data.color)
       .attr('stroke', (d: d3.HierarchyPointNode<Data>) => d.data.color);
-
-    const hoverEffect = (a: d3.HierarchyPointNode<Data>[], type: string) => {
-      if (type === 'mouseenter') {
-        nodes
-          .filter((n) => {
-            return a.indexOf(n) > -1;
-          })
-          .attr('stroke', 'blue');
-
-        links
-          .filter((n) => {
-            return a.indexOf(n.target) > -1;
-          })
-          .attr('stroke', 'blue');
-      } else {
-        nodes.attr('fill', (d: d3.HierarchyPointNode<Data>) => d.data.color);
-        nodes.attr('stroke', (d: d3.HierarchyPointNode<Data>) => d.data.color);
-        links.attr('stroke', (d) => d.target.data.color);
-      }
-    };
 
     nodes
       .selectAll('circle')
@@ -183,23 +164,13 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
     const treeLayout = treeFn<Data>().size([size, size]);
     const r = treeLayout(d3.hierarchy(data)).sort((a, b) => d3.descending(a.height, b.height)); // set x/y
 
-    const recursive = (d, branchColor) => {
+    const setBranchColor = (d, branchColor) => {
       d.data.color = branchColor;
       if (!d.children) return;
-      d.children.forEach((c) => recursive(c, branchColor));
+      d.children.forEach((c) => setBranchColor(c, branchColor));
     };
 
-    r.children.forEach((d) => recursive(d, color(d.data.name)));
-
-    // r.children.forEach((e: d3.HierarchyPointNode<Data>) => {
-    //   const recursive = (d, branchColor) => {
-    //     d.data.color = branchColor;
-    //     if (!d.children) return;
-    //     d.children.forEach((c) => recursive(c, branchColor));
-    //   };
-
-    //   e.children.forEach((d) => recursive(d, color(e.data.name)));
-    // });
+    r.children.forEach((d) => setBranchColor(d, color(d.data.name)));
 
     // Height is number of nodes with root at the top, leaves at the bottom.
     // Every node get's a padding for the circle
