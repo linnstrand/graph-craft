@@ -18,14 +18,14 @@ export default App;
 const Container = () => {
   const [graph, setGraph] = useState('sunburst');
   return (
-    <div className="container">
+    <>
       <NavBar graph={graph} setGraph={setGraph} />
-      {graph === 'tree' ? (
+      {graph === 'sunburst' ? (
         <Sunburst data={{ ...testdata }} size={940} />
       ) : (
-        <Tree data={{ ...testdata }} size={1040} />
+        <Tree data={{ ...testdata }} size={1000} />
       )}
-    </div>
+    </>
   );
 };
 

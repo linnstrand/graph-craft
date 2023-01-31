@@ -219,29 +219,31 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
 
   const setLayoutRadial = (v: 'tree' | 'cluster') => {
     const treeFn = v === 'tree' ? d3.tree : d3.cluster;
-    let r = root;
     variant = v;
 
-    let treeLayout = treeFn<Data>().size([2 * Math.PI, size / 2]);
-    r = addColor(treeLayout, data);
-    //  r = treeLayout(d3.hierarchy(data));
+    let treeLayout = treeFn<Data>();
+    let hierarchy = treeLayout(d3.hierarchy(data));
     let nodeLength = labelLength;
     if (!layoutType) {
-      nodeLength = createNodes(r.descendants());
+      nodeLength = createNodes(hierarchy.descendants());
     }
+
+    const treeSize = v === 'tree' ? (size - nodeLength) / 2 : (size - nodeLength * 2) / 2;
+    const centering = v === 'tree' ? (size + nodeLength) / 2 : size / 2;
+
     treeLayout = treeFn<Data>()
-      .size([2 * Math.PI, (size - nodeLength * 2) / 2])
-      .separation((a, b) => (a.parent == b.parent ? 1 : 2) / a.depth);
+      .size([2 * Math.PI, treeSize])
+      .separation((a, b) => (a.parent == b.parent ? 1 : 2) / a.depth + 1);
 
-    r = treeLayout(d3.hierarchy(data)).sort((a, b) => d3.descending(a.height, b.height));
-    setStartPosition(`translate(${size / 2},${size / 2})`);
+    hierarchy = addColor(treeLayout, data);
 
+    setStartPosition(`translate(${centering},${centering})`);
     setLabelLength(nodeLength);
-    setRoot(r);
+    setRoot(hierarchy);
     const svg = d3.select(svgRef.current);
     svg.attr('height', size);
     svg.attr('viewBox', [0, 0, size, size]);
-    setTreeNodes(radialTree, r);
+    setTreeNodes(radialTree, hierarchy);
     setLayoutType('radial');
   };
 
