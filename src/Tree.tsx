@@ -52,10 +52,12 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
     setLayoutRadial('tree');
   }, []);
 
-  const createNodes = (root: d3.HierarchyPointNode<Data>[]) => {
+  const createNodes = (hierarchy: d3.HierarchyPointNode<Data>) => {
     // we want to set start position, same as nodes
     d3.select(linesRef.current)
       .selectAll('path')
+      .data(() => hierarchy.links())
+      .join('path')
       .attr(
         'd',
         d3
@@ -71,7 +73,7 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
     const nodes = d3
       .select(nodesRef.current)
       .selectAll('g')
-      .data(() => root)
+      .data(() => hierarchy.descendants())
       .join('g')
       .attr('transform', `translate(0, ${size / 2})`)
       .attr('opacity', 0);
@@ -182,7 +184,7 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
 
     let nodeLength = labelLength;
     if (!layoutType) {
-      nodeLength = createNodes(r.descendants());
+      nodeLength = createNodes(r);
     }
 
     // recalculating nodeSize so that the nodes are not pushed outside view
@@ -225,7 +227,7 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
     let hierarchy = treeLayout(d3.hierarchy(data));
     let nodeLength = labelLength;
     if (!layoutType) {
-      nodeLength = createNodes(hierarchy.descendants());
+      nodeLength = createNodes(hierarchy);
     }
 
     const treeSize = v === 'tree' ? (size - nodeLength) / 2 : (size - nodeLength * 2) / 2;
