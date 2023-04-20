@@ -3,9 +3,12 @@ import './tree.css';
 import { useLayoutEffect, useRef, useState } from 'react';
 import { addColor, brighter, Data } from './util';
 
-type LayoutT = 'tidy' | 'radial';
+interface LayoutT {
+  type: 'tidy' | 'radial';
+  cluster: boolean;
+}
+
 interface GraphLayout {
-  variant: LayoutT;
   transform: (d: d3.HierarchyPointNode<Data>) => string;
   link:
     | d3.Link<unknown, unknown, d3.HierarchyPointNode<Data>>
@@ -18,38 +21,32 @@ const FONTSIZE = 10;
 const FONTCOLOR = '#eee';
 const ANIMATION_TIMER = 1000;
 
+const tidyTree: GraphLayout = {
+  transform: (d) => `translate(${d.y},${d.x})`,
+  link: d3
+    .link<unknown, d3.HierarchyPointNode<Data>>(d3.curveBumpX)
+    .x((d) => d.y)
+    .y((d) => d.x)
+};
+
+const radialTree: GraphLayout = {
+  transform: (d) => `rotate(${(d.x * 180) / Math.PI - 90}) translate(${d.y},0)`,
+  link: d3
+    .linkRadial<unknown, d3.HierarchyPointNode<Data>>()
+    .angle((d) => d.x)
+    .radius((d) => d.y)
+};
+
 export const Tree = ({ data, size }: { data: Data; size: number }) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const nodesRef = useRef<SVGSVGElement>(null);
   const linesRef = useRef<SVGSVGElement>(null);
 
-  let variant = 'tree';
-
-  const [layoutType, setLayoutType] = useState<LayoutT | null>(null);
-  const [root, setRoot] = useState<d3.HierarchyPointNode<Data | null>>(null);
+  const [layout, setLayout] = useState<LayoutT>({ type: 'radial', cluster: false });
   const [labelLength, setLabelLength] = useState(60);
 
-  const tidyTree: GraphLayout = {
-    variant: 'tidy',
-    transform: (d) => `translate(${d.y},${d.x})`,
-    link: d3
-      .link<unknown, d3.HierarchyPointNode<Data>>(d3.curveBumpX)
-      .x((d) => d.y)
-      .y((d) => d.x)
-  };
-
-  const radialTree: GraphLayout = {
-    variant: 'radial',
-    transform: (d) => `rotate(${(d.x * 180) / Math.PI - 90}) translate(${d.y},0)`,
-    link: d3
-      .linkRadial<unknown, d3.HierarchyPointNode<Data>>()
-      .angle((d) => d.x)
-      .radius((d) => d.y)
-  };
-
   useLayoutEffect(() => {
-    if (layoutType) return;
-    setLayoutRadial('tree');
+    setLayoutRadial();
   }, []);
 
   const createNodes = (hierarchy: d3.HierarchyPointNode<Data>) => {
@@ -169,7 +166,6 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
 
   const setTreeLayout = (v) => {
     const treeFn = v === 'tree' ? d3.tree : d3.cluster;
-    variant = v;
 
     // d3.tree returns a layout function that sets the x and y coordinates for each node in the hierarchy in a manner that keeps nodes that are at the same depth aligned vertically
     // root height is the greatest distance from any descendant leaf.
@@ -183,7 +179,7 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
     treeLayout.nodeSize([MARGIN, size / r.height - labelLength])(r);
 
     let nodeLength = labelLength;
-    if (!layoutType) {
+    if (!layout) {
       nodeLength = createNodes(r);
     }
 
@@ -211,27 +207,25 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
     svg.attr('height', () => height);
     svg.attr('viewBox', () => [0, 0, size, height]);
     setLabelLength(nodeLength);
-    setRoot(r);
-    setLayoutType('tidy');
+    setLayout({ type: 'tidy', cluster: v === 'cluster' });
 
     setTreeNodes(tidyTree, r);
 
     return r;
   };
 
-  const setLayoutRadial = (v: 'tree' | 'cluster') => {
-    const treeFn = v === 'tree' ? d3.tree : d3.cluster;
-    variant = v;
+  const setLayoutRadial = (isCluster = false) => {
+    const treeFn = isCluster ? d3.cluster : d3.tree;
 
     let treeLayout = treeFn<Data>();
     let hierarchy = treeLayout(d3.hierarchy(data));
     let nodeLength = labelLength;
-    if (!layoutType) {
+    if (!layout) {
       nodeLength = createNodes(hierarchy);
     }
 
-    const treeSize = v === 'tree' ? (size - nodeLength) / 2 : (size - nodeLength * 2) / 2;
-    const centering = v === 'tree' ? (size + nodeLength) / 2 : size / 2;
+    const treeSize = isCluster ? (size - nodeLength * 2) / 2 : (size - nodeLength) / 2;
+    const centering = isCluster ? size / 2 : (size + nodeLength) / 2;
 
     treeLayout = treeFn<Data>()
       .size([2 * Math.PI, treeSize])
@@ -241,34 +235,33 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
 
     setStartPosition(`translate(${centering},${centering})`);
     setLabelLength(nodeLength);
-    setRoot(hierarchy);
     const svg = d3.select(svgRef.current);
     svg.attr('height', size);
     svg.attr('viewBox', [0, 0, size, size]);
     setTreeNodes(radialTree, hierarchy);
-    setLayoutType('radial');
+    setLayout({ type: 'radial', cluster: isCluster });
   };
 
   return (
     <>
       <div className="settings">
         <button
-          className={layoutType === 'tidy' ? 'active' : ''}
+          className={layout.type === 'tidy' ? 'active' : ''}
           onClick={() => setTreeLayout('tree')}
         >
           layout Tree
         </button>
         <button
-          className={layoutType === 'radial' ? 'active' : ''}
-          onClick={() => setLayoutRadial('tree')}
+          className={layout.type === 'radial' ? 'active' : ''}
+          onClick={() => setLayoutRadial()}
         >
           layout Radial
         </button>
         <div>
           <button
-            className={variant === 'cluster' ? 'active' : ''}
+            className={layout.cluster ? 'active' : ''}
             onClick={() =>
-              layoutType === 'tidy' ? setTreeLayout('cluster') : setLayoutRadial('cluster')
+              layout.type === 'tidy' ? setTreeLayout('cluster') : setLayoutRadial(true)
             }
           >
             layout Cluster

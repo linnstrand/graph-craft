@@ -6,7 +6,8 @@ export const Sunburst = ({ data, size }: { data: Data; size: number }) => {
   const ref = useRef<SVGSVGElement>(null);
 
   const radius = size / 6;
-  const color = getColor(data.children.length);
+  const colorSetter = getColor(data.children.length + 1);
+  console.log(colorSetter);
 
   const root: d3.HierarchyRectangularNode<Data> = useMemo(() => {
     const hirarchy = d3.hierarchy(data);
@@ -23,7 +24,7 @@ export const Sunburst = ({ data, size }: { data: Data; size: number }) => {
       d.children.forEach((c) => setBranchColor(c, branchColor));
     };
 
-    partition.children.forEach((d) => setBranchColor(d, color(d.data.name)));
+    partition.children.forEach((d) => setBranchColor(d, colorSetter(d.data.name)));
     return partition.each((d) => (d.data.current = d));
   }, [data, size]);
 

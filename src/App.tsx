@@ -20,7 +20,7 @@ const Container = () => {
   return (
     <>
       <NavBar graph={graph} setGraph={setGraph} />
-      {graph === 'sunburst' ? (
+      {graph === 'tree' ? (
         <Sunburst data={{ ...testdata }} size={940} />
       ) : (
         <Tree data={{ ...testdata }} size={1000} />
