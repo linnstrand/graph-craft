@@ -1,7 +1,7 @@
 import * as d3 from 'd3';
 import './tree.css';
 import { useLayoutEffect, useRef, useState } from 'react';
-import { addColor, brighter, Data } from './util';
+import { addColor as createColorfulHierarchy, brighter, Data } from './util';
 
 interface LayoutT {
   type: 'tidy' | 'radial';
@@ -42,11 +42,12 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
   const nodesRef = useRef<SVGSVGElement>(null);
   const linesRef = useRef<SVGSVGElement>(null);
 
-  const [layout, setLayout] = useState<LayoutT>({ type: 'radial', cluster: false });
+  const [layout, setLayout] = useState<LayoutT>(null);
   const [labelLength, setLabelLength] = useState(60);
 
   useLayoutEffect(() => {
-    setLayoutRadial();
+    // setLayoutRadial();
+    setTreeLayout();
   }, []);
 
   const createNodes = (hierarchy: d3.HierarchyPointNode<Data>) => {
@@ -164,32 +165,32 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
     d3.select(nodesRef.current).transition().duration(ANIMATION_TIMER).attr('transform', transform);
   };
 
-  const setTreeLayout = (v) => {
-    const treeFn = v === 'tree' ? d3.tree : d3.cluster;
+  const setTreeLayout = (isCluster = false) => {
+    const treeFn = isCluster ? d3.cluster : d3.tree;
 
     // d3.tree returns a layout function that sets the x and y coordinates for each node in the hierarchy in a manner that keeps nodes that are at the same depth aligned vertically
     // root height is the greatest distance from any descendant leaf.
     // node size here is distance between depths
     const treeLayout = treeFn<Data>().size([size, size]);
-    const r = addColor(treeLayout, data);
+    const hierarchy = createColorfulHierarchy(treeLayout, data);
 
     // Height is number of nodes with root at the top, leaves at the bottom.
     // Every node get's a padding for the circle
     // the node height =  MARGIN. For length, we want to compensate for label
-    treeLayout.nodeSize([MARGIN, size / r.height - labelLength])(r);
+    treeLayout.nodeSize([MARGIN, size / hierarchy.height - labelLength])(hierarchy);
 
     let nodeLength = labelLength;
     if (!layout) {
-      nodeLength = createNodes(r);
+      nodeLength = createNodes(hierarchy);
     }
 
     // recalculating nodeSize so that the nodes are not pushed outside view
-    treeLayout.nodeSize([MARGIN, size / r.height - nodeLength / 2])(r);
+    treeLayout.nodeSize([MARGIN, size / hierarchy.height - nodeLength / 2])(hierarchy);
     // Center the tree
     // if the tree is left/right (it is), x is used to calculate height
     let x0 = size;
     let x1 = -size;
-    r.each((d) => {
+    hierarchy.each((d) => {
       if (d.x > x1) x1 = d.x;
       if (d.x < x0) x0 = d.x;
     });
@@ -207,34 +208,37 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
     svg.attr('height', () => height);
     svg.attr('viewBox', () => [0, 0, size, height]);
     setLabelLength(nodeLength);
-    setLayout({ type: 'tidy', cluster: v === 'cluster' });
+    setLayout({ type: 'tidy', cluster: isCluster });
 
-    setTreeNodes(tidyTree, r);
+    setTreeNodes(tidyTree, hierarchy);
 
-    return r;
+    return hierarchy;
   };
 
   const setLayoutRadial = (isCluster = false) => {
     const treeFn = isCluster ? d3.cluster : d3.tree;
 
-    let treeLayout = treeFn<Data>();
+    const treeLayout = treeFn<Data>();
     let hierarchy = treeLayout(d3.hierarchy(data));
-    let nodeLength = labelLength;
+    let maxLabelLength = labelLength;
+
     if (!layout) {
-      nodeLength = createNodes(hierarchy);
+      // we dont want long labels to get pushed outside the viewbox,
+      // so we need to recalculate size and position after creating the label
+      maxLabelLength = createNodes(hierarchy);
     }
 
-    const treeSize = isCluster ? (size - nodeLength * 2) / 2 : (size - nodeLength) / 2;
-    const centering = isCluster ? size / 2 : (size + nodeLength) / 2;
+    const treeSize = isCluster ? (size - maxLabelLength * 2) / 2 : (size - maxLabelLength) / 2;
+    const centering = isCluster ? size / 2 : (size + maxLabelLength) / 2;
 
-    treeLayout = treeFn<Data>()
+    treeLayout
       .size([2 * Math.PI, treeSize])
       .separation((a, b) => (a.parent == b.parent ? 1 : 2) / a.depth + 1);
 
-    hierarchy = addColor(treeLayout, data);
+    hierarchy = createColorfulHierarchy(treeLayout, data);
 
     setStartPosition(`translate(${centering},${centering})`);
-    setLabelLength(nodeLength);
+    setLabelLength(maxLabelLength);
     const svg = d3.select(svgRef.current);
     svg.attr('height', size);
     svg.attr('viewBox', [0, 0, size, size]);
@@ -245,24 +249,19 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
   return (
     <>
       <div className="settings">
-        <button
-          className={layout.type === 'tidy' ? 'active' : ''}
-          onClick={() => setTreeLayout('tree')}
-        >
+        <button className={layout?.type === 'tidy' ? 'active' : ''} onClick={() => setTreeLayout()}>
           layout Tree
         </button>
         <button
-          className={layout.type === 'radial' ? 'active' : ''}
+          className={layout?.type === 'radial' ? 'active' : ''}
           onClick={() => setLayoutRadial()}
         >
           layout Radial
         </button>
         <div>
           <button
-            className={layout.cluster ? 'active' : ''}
-            onClick={() =>
-              layout.type === 'tidy' ? setTreeLayout('cluster') : setLayoutRadial(true)
-            }
+            className={layout?.cluster ? 'active' : ''}
+            onClick={() => (layout?.type === 'tidy' ? setTreeLayout(true) : setLayoutRadial(true))}
           >
             layout Cluster
           </button>

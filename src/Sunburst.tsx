@@ -7,7 +7,6 @@ export const Sunburst = ({ data, size }: { data: Data; size: number }) => {
 
   const radius = size / 6;
   const colorSetter = getColor(data.children.length + 1);
-  console.log(colorSetter);
 
   const root: d3.HierarchyRectangularNode<Data> = useMemo(() => {
     const hirarchy = d3.hierarchy(data);

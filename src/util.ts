@@ -15,7 +15,10 @@ export const sortHeight = (root: d3.HierarchyNode<Data>) =>
 
 export const addColor = (treeLayout: d3.TreeLayout<Data>, data: Data) => {
   const color = getColor(data.children.length + 1);
-  const r = treeLayout(d3.hierarchy(data)).sort((a, b) => d3.descending(a.height, b.height)); // set x/y
+
+  const hierarchy = treeLayout(d3.hierarchy(data)).sort((a, b) =>
+    d3.descending(a.height, b.height)
+  );
 
   const setBranchColor = (d, branchColor) => {
     d.data.color = branchColor;
@@ -23,8 +26,8 @@ export const addColor = (treeLayout: d3.TreeLayout<Data>, data: Data) => {
     d.children.forEach((c) => setBranchColor(c, branchColor));
   };
 
-  r.children.forEach((d) => setBranchColor(d, color(d.data.name)));
-  return r;
+  hierarchy.children.forEach((d) => setBranchColor(d, color(d.data.name)));
+  return hierarchy;
 };
 // COLOR!
 // ordinal scales have a discrete domain and range

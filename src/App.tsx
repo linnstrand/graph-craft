@@ -16,11 +16,11 @@ function App() {
 export default App;
 
 const Container = () => {
-  const [graph, setGraph] = useState('sunburst');
+  const [graph, setGraph] = useState('tree');
   return (
     <>
       <NavBar graph={graph} setGraph={setGraph} />
-      {graph === 'tree' ? (
+      {graph === 'sunburst' ? (
         <Sunburst data={{ ...testdata }} size={940} />
       ) : (
         <Tree data={{ ...testdata }} size={1000} />
