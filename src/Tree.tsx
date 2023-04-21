@@ -1,7 +1,7 @@
 import * as d3 from 'd3';
 import './tree.css';
 import { useLayoutEffect, useRef, useState } from 'react';
-import { Data, getDiscreteColors } from './util';
+import { ChartParams, Data } from './util';
 
 type PointNode = d3.HierarchyPointNode<Data>;
 
@@ -23,26 +23,6 @@ const ANIMATION_TIMER = 1000;
 
 export const brighter = (color) => d3.rgb(color).brighter(2).formatRgb();
 
-const createColorfulHierarchy = (
-  treeLayout: d3.TreeLayout<Data> | d3.ClusterLayout<Data>,
-  data: Data
-) => {
-  const colorSetter = getDiscreteColors(data.children.length + 1);
-
-  const hierarchy = treeLayout(d3.hierarchy(data)).sort((a, b) =>
-    d3.descending(a.height, b.height)
-  );
-
-  const setBranchColor = (d: d3.HierarchyPointNode<Data>, branchColor: string) => {
-    d.data.color = branchColor;
-    if (!d.children) return;
-    d.children.forEach((c) => setBranchColor(c, branchColor));
-  };
-
-  hierarchy.children.forEach((d) => setBranchColor(d, colorSetter(d.data.name)));
-  return hierarchy;
-};
-
 const tidyTree: GraphLayout = {
   transform: (d) => `translate(${d.y},${d.x})`,
   link: d3
@@ -59,13 +39,31 @@ const radialTree: GraphLayout = {
     .radius((d) => d.y)
 };
 
-export const Tree = ({ data, size }: { data: Data; size: number }) => {
+export const Tree = ({ data, size, colorSetter }: ChartParams) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const nodesRef = useRef<SVGSVGElement>(null);
   const linesRef = useRef<SVGSVGElement>(null);
 
   const [layout, setLayout] = useState<LayoutT>(null);
   const [labelLength, setLabelLength] = useState(60);
+
+  const createColorfulHierarchy = (
+    treeLayout: d3.TreeLayout<Data> | d3.ClusterLayout<Data>,
+    data: Data
+  ) => {
+    const hierarchy = treeLayout(d3.hierarchy(data)).sort((a, b) =>
+      d3.descending(a.height, b.height)
+    );
+
+    const setBranchColor = (d: d3.HierarchyPointNode<Data>, branchColor: string) => {
+      d.data.color = branchColor;
+      if (!d.children) return;
+      d.children.forEach((c) => setBranchColor(c, branchColor));
+    };
+
+    hierarchy.children.forEach((d) => setBranchColor(d, colorSetter(d.data.name)));
+    return hierarchy;
+  };
 
   useLayoutEffect(() => {
     setLayoutRadial();

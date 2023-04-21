@@ -1,6 +1,6 @@
 import { useMemo, useRef, useLayoutEffect } from 'react';
 import * as d3 from 'd3';
-import { Data, getDiscreteColors } from './util';
+import { ChartParams, Data } from './util';
 
 interface DataSun extends Data {
   target?: DataNode;
@@ -24,11 +24,10 @@ const setBranchColor = (d: DataNode, branchColor: string) => {
   d.children.forEach((c) => setBranchColor(c, branchColor));
 };
 
-export const Sunburst = ({ data, size }: { data: Data; size: number }) => {
+export const Sunburst = ({ data, size, colorSetter }: ChartParams) => {
   const ref = useRef<SVGSVGElement>(null);
 
   const radius = size / 6;
-  const colorSetter = getDiscreteColors(data.children.length + 1);
 
   const root = useMemo(() => {
     const hirarchy = d3.hierarchy(data);
@@ -40,7 +39,7 @@ export const Sunburst = ({ data, size }: { data: Data; size: number }) => {
   }, [data, size]);
 
   // for every datum, add a slice to the arc
-  const arc = d3
+  const setArc = d3
     .arc<DataNode>()
     .startAngle((d) => d.x0)
     .endAngle((d) => d.x1)
@@ -65,29 +64,27 @@ export const Sunburst = ({ data, size }: { data: Data; size: number }) => {
     return `rotate(${x - 90}) translate(${y},0) rotate(${x < 180 ? 0 : 180})`;
   };
 
-  const nodeData: DataNode[] = root.descendants().slice(1);
-
   useLayoutEffect(() => {
     const container = d3
       .select(ref.current)
       .attr('transform', `translate(${size / 2},${size / 2})`);
 
-    const slice = container
+    const slices = container
       .append('g')
       .selectAll('path')
-      .data(nodeData)
+      .data(root.descendants().slice(1))
       .join('path')
       .attr('fill', (d) => d.data.color)
       .attr('fill-opacity', (d) => (arcVisible(d.data.current) ? 1 : 0))
       .attr('pointer-events', (d) => (arcVisible(d.data.current) ? 'auto' : 'none'))
-      .attr('d', (d) => arc(d.data.current));
+      .attr('d', (d) => setArc(d.data.current));
 
-    slice
+    slices
       .filter((d) => Boolean(d.children))
       .style('cursor', 'pointer')
-      .on('click', (e, s) => clicked(s, center, container, slice, label));
+      .on('click', (_, s) => clicked(s, center, container, slices, labels));
 
-    const label = container
+    const labels = container
       .append('g')
       .attr('pointer-events', 'none')
       .attr('text-anchor', 'middle')
@@ -117,22 +114,28 @@ export const Sunburst = ({ data, size }: { data: Data; size: number }) => {
       .attr('fill', 'none')
       .attr('pointer-events', 'all')
       .attr('cursor', (d) => (d.depth > 0 ? 'pointer' : 'default'))
-      .on('click', (_, c) => clicked(c, center, container, slice, label));
+      .on('click', (_, c) => clicked(c, center, container, slices, labels));
 
     return () => {
       ref.current.innerHTML = '';
     };
   }, []);
 
+  /**
+   *
+   * @param p The clicked element
+   * @param parent Parent of the clicked element, that will be set to center
+   * @param container To update the animations
+   * @param slices Change the position of slices, their visibility and animate them
+   * @param labels  Change the position of labels, their visibility and animate them
+   */
   function clicked(
     p: DataNode,
     parent: d3.Selection<SVGCircleElement, DataNode, null, DataNode>,
     container: d3.Selection<SVGSVGElement, DataNode, null, DataNode>,
-    slice: d3.Selection<d3.BaseType, DataNode, SVGGElement, DataNode>,
-    label: d3.Selection<d3.BaseType, DataNode, SVGGElement, DataNode>
+    slices: d3.Selection<d3.BaseType, DataNode, SVGGElement, DataNode>,
+    labels: d3.Selection<d3.BaseType, DataNode, SVGGElement, DataNode>
   ) {
-    // p is the clicked element
-    // parent of the clicked node should be center
     parent.datum(p?.parent || root);
     const text = container.selectChild('text').attr('opacity', 0);
     text
@@ -162,7 +165,7 @@ export const Sunburst = ({ data, size }: { data: Data; size: number }) => {
     );
 
     const t = container.transition().duration(750);
-    slice
+    slices
       .transition(t)
       .tween('animated-slices', (d) => {
         const i = d3.interpolate(d.data.current, d.data.target);
@@ -170,9 +173,9 @@ export const Sunburst = ({ data, size }: { data: Data; size: number }) => {
       })
       .attr('fill-opacity', (d) => (arcVisible(d.data.target) ? 1 : 0))
       .attr('pointer-events', (d) => (arcVisible(d.data.target) ? 'auto' : 'none'))
-      .attrTween('d', (d) => () => arc(d.data.current));
+      .attrTween('d', (d) => () => setArc(d.data.current));
 
-    label
+    labels
       .transition(t)
       .attr(
         'font-size',

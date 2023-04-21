@@ -7,6 +7,12 @@ export interface Data {
   color?: string;
 }
 
+export interface ChartParams {
+  data: Data;
+  size: number;
+  colorSetter: d3.ScaleOrdinal<string, string, never>;
+}
+
 // COLOR!
 // ordinal scales have a discrete domain and range
 // quantize: Quantize scales are similar to linear scales, except they use a discrete rather than continuous range. Returns uniformly-spaced samples from the specified interpolator
