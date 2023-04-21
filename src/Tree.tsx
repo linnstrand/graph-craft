@@ -66,8 +66,8 @@ export const Tree = ({ data, size, colorSetter }: ChartParams) => {
   };
 
   useLayoutEffect(() => {
-    setLayoutRadial();
-    // setTreeLayout();
+    // setLayoutRadial();
+    setTreeLayout();
   }, []);
 
   const createNodes = (hierarchy: PointNode) => {
@@ -183,13 +183,38 @@ export const Tree = ({ data, size, colorSetter }: ChartParams) => {
     d3.select(nodesRef.current).transition().duration(ANIMATION_TIMER).attr('transform', transform);
   };
 
-  const setTreeLayout = (isCluster = false) => {
-    const treeFn = isCluster ? d3.cluster : d3.tree;
+  const centerTree = (hierarchy, treeLayout) => {
+    // recalculating nodeSize so that the nodes are not pushed outside view
+    treeLayout.nodeSize([MARGIN, size / hierarchy.height - labelLength / 2])(hierarchy);
 
+    let right = size;
+    let left = -size;
+    hierarchy.each((d) => {
+      if (d.x > left) left = d.x;
+      if (d.x < right) right = d.x;
+    });
+
+    const rootElement = d3.select(nodesRef.current).selectChild().node() as SVGGraphicsElement;
+    // its better to adjust position with translate then changing the viewport
+    setStartPosition(
+      `translate(${Math.ceil(rootElement?.getBBox()?.width ?? labelLength + MARGIN)},${
+        -right + MARGIN
+      })`
+    );
+    // We let tree height be dynamic to keep the margins and size
+    const height = left - right + MARGIN * 2;
+    const svg = d3.select(svgRef.current);
+    svg.attr('height', () => height);
+    svg.attr('viewBox', () => [0, 0, size, height]);
+
+    setTreeNodes(tidyTree, hierarchy);
+  };
+
+  const setTreeLayout = () => {
     // d3.tree returns a layout function that sets the x and y coordinates for each node in the hierarchy in a manner that keeps nodes that are at the same depth aligned vertically
     // root height is the greatest distance from any descendant leaf.
     // node size here is distance between depths
-    const treeLayout = treeFn<Data>().size([size, size]);
+    const treeLayout = d3.tree<Data>().size([size, size]);
     const hierarchy = createColorfulHierarchy(treeLayout, data);
 
     // Height is number of nodes with root at the top, leaves at the bottom.
@@ -202,42 +227,31 @@ export const Tree = ({ data, size, colorSetter }: ChartParams) => {
       nodeLength = createNodes(hierarchy);
       setLabelLength(nodeLength);
     }
-    // recalculating nodeSize so that the nodes are not pushed outside view
-    treeLayout.nodeSize([MARGIN, size / hierarchy.height - nodeLength / 2])(hierarchy);
 
     // Center the tree
-    let right = size;
-    let left = -size;
-    hierarchy.each((d) => {
-      if (d.x > left) left = d.x;
-      if (d.x < right) right = d.x;
-    });
-
-    const rootElement = d3.select(nodesRef.current).selectChild().node() as SVGGraphicsElement;
-    // its better to adjust position with translate then changing the viewport
-    setStartPosition(
-      `translate(${Math.ceil(rootElement?.getBBox()?.width ?? nodeLength + MARGIN)},${
-        -right + MARGIN
-      })`
-    );
-    // We let tree height be dynamic to keep the margins and size
-    const height = left - right + MARGIN * 2;
-    const svg = d3.select(svgRef.current);
-    svg.attr('height', () => height);
-    svg.attr('viewBox', () => [0, 0, size, height]);
-    setLayout({ type: 'tidy', cluster: isCluster });
+    centerTree(hierarchy, treeLayout);
+    setLayout({ type: 'tidy', cluster: false });
 
     setTreeNodes(tidyTree, hierarchy);
 
     return hierarchy;
   };
 
-  const setLayoutRadial = (isCluster = false) => {
-    const treeFn = isCluster ? d3.cluster : d3.tree;
+  const setTreeLayoutCluster = () => {
+    const treeLayout = d3.cluster<Data>().size([size, size]);
+    const hierarchy = createColorfulHierarchy(treeLayout, data);
 
-    const treeLayout = treeFn<Data>().separation(
-      (a, b) => (a.parent == b.parent ? 1 : 2) / a.depth + 1
-    );
+    centerTree(hierarchy, treeLayout);
+
+    setLayout({ type: 'tidy', cluster: true });
+
+    setTreeNodes(tidyTree, hierarchy);
+  };
+
+  const setLayoutRadial = (isCluster = false) => {
+    const treeLayout = d3
+      .tree<Data>()
+      .separation((a, b) => (a.parent == b.parent ? 1 : 2) / a.depth + 1);
     let hierarchy = treeLayout(d3.hierarchy(data));
 
     let maxLabelLength = labelLength;
@@ -248,8 +262,8 @@ export const Tree = ({ data, size, colorSetter }: ChartParams) => {
       setLabelLength(maxLabelLength);
     }
 
-    const treeSize = isCluster ? (size - maxLabelLength * 2) / 2 : (size - maxLabelLength) / 2;
-    const centering = isCluster ? size / 2 : (size + maxLabelLength) / 2;
+    const treeSize = (size - maxLabelLength) / 2;
+    const centering = (size + maxLabelLength) / 2;
 
     treeLayout.size([2 * Math.PI, treeSize]);
 
@@ -259,6 +273,24 @@ export const Tree = ({ data, size, colorSetter }: ChartParams) => {
     const svg = d3.select(svgRef.current);
     svg.attr('height', size);
     svg.attr('viewBox', [0, 0, size, size]);
+    setTreeNodes(radialTree, hierarchy);
+    setLayout({ type: 'radial', cluster: isCluster });
+  };
+
+  const setCluster = (isCluster = false) => {
+    const treeLayout = d3
+      .cluster<Data>()
+      .separation((a, b) => (a.parent == b.parent ? 1 : 2) / a.depth + 1);
+    let hierarchy = treeLayout(d3.hierarchy(data));
+
+    const treeSize = (size - labelLength * 2) / 2;
+    const centering = size / 2;
+
+    treeLayout.size([2 * Math.PI, treeSize]);
+
+    hierarchy = createColorfulHierarchy(treeLayout, data);
+
+    setStartPosition(`translate(${centering},${centering})`);
     setTreeNodes(radialTree, hierarchy);
     setLayout({ type: 'radial', cluster: isCluster });
   };
@@ -278,7 +310,9 @@ export const Tree = ({ data, size, colorSetter }: ChartParams) => {
         <div>
           <button
             className={layout?.cluster ? 'active' : ''}
-            onClick={() => (layout?.type === 'tidy' ? setTreeLayout(true) : setLayoutRadial(true))}
+            onClick={() =>
+              layout?.type === 'tidy' ? setTreeLayoutCluster(true) : setCluster(true)
+            }
           >
             layout Cluster
           </button>
