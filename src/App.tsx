@@ -17,7 +17,7 @@ function App() {
 export default App;
 
 const Container = () => {
-  const [graph, setGraph] = useState('sunburst');
+  const [graph, setGraph] = useState('tree');
   const data = { ...testdata };
   const colorSetter = getDiscreteColors(data.children.length + 1);
 

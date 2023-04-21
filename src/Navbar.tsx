@@ -16,7 +16,8 @@ export const NavBar = ({
             onClick={() => setGraph('sunburst')}
           >
             Sunburst
-          </button>
+          </button>{' '}
+          {' | '}
         </li>
         <li>
           <button className={graph === 'tree' ? 'active' : ''} onClick={() => setGraph('tree')}>

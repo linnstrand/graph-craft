@@ -39,10 +39,6 @@ const radialTree: GraphLayout = {
     .radius((d) => d.y)
 };
 
-const setStartPosition = (ref: SVGElement, transform: string) => {
-  d3.select(ref).transition().duration(ANIMATION_TIMER).attr('transform', transform);
-};
-
 const createColorfulHierarchy = (
   treeLayout: d3.TreeLayout<Data> | d3.ClusterLayout<Data>,
   data: Data,
@@ -71,8 +67,7 @@ export const Tree = ({ data, size, colorSetter }: ChartParams) => {
   const [labelLength, setLabelLength] = useState(60);
 
   useLayoutEffect(() => {
-    //setLayoutRadial();
-    setTreeLayout();
+    setRadialLayout();
   }, []);
 
   const createNodes = (hierarchy: PointNode) => {
@@ -183,24 +178,27 @@ export const Tree = ({ data, size, colorSetter }: ChartParams) => {
     });
   };
 
+  const setStartPosition = (transform: string) => {
+    d3.select(nodesRef.current).transition().duration(ANIMATION_TIMER).attr('transform', transform);
+    d3.select(linesRef.current).transition().duration(ANIMATION_TIMER).attr('transform', transform);
+  };
+
   const centerTree = (
     treeLayout: d3.TreeLayout<Data> | d3.ClusterLayout<Data>,
     isCluster: boolean
   ) => {
     const hierarchy = createColorfulHierarchy(treeLayout, data, colorSetter);
     treeLayout.size([size, size]);
-    // Height is number of nodes with root at the top, leaves at the bottom.
-    // Every node get's a padding for the circle
-    // the node height =  MARGIN. For length, we want to compensate for label
 
     let nodeLength = labelLength;
     if (!layout) {
+      // Height is number of nodes with root at the top, leaves at the bottom.
+      // Every node get's a padding for the circle
+      // the node height =  MARGIN. For length, we want to compensate for label
       treeLayout.nodeSize([MARGIN, size / hierarchy.height - labelLength]);
-      treeLayout(hierarchy);
       nodeLength = createNodes(hierarchy);
       setLabelLength(nodeLength);
     }
-
     // recalculating nodeSize so that the nodes are not pushed outside view
     treeLayout.nodeSize([MARGIN, size / hierarchy.height - nodeLength / 2]);
     treeLayout(hierarchy);
@@ -214,12 +212,12 @@ export const Tree = ({ data, size, colorSetter }: ChartParams) => {
 
     const rootElement = d3.select(nodesRef.current).selectChild().node() as SVGGraphicsElement;
     // its better to adjust position with translate then changing the viewport
-    const transform = `translate(${Math.ceil(
-      rootElement?.getBBox()?.width ?? nodeLength + MARGIN
-    )},${-right + MARGIN})`;
 
-    setStartPosition(nodesRef.current, transform);
-    setStartPosition(linesRef.current, transform);
+    setStartPosition(
+      `translate(${Math.ceil(rootElement?.getBBox()?.width ?? nodeLength + MARGIN)},${
+        -right + MARGIN
+      })`
+    );
     // We let tree height be dynamic to keep the margins and size
     const height = left - right + MARGIN * 2;
     const svg = d3.select(svgRef.current);
@@ -253,8 +251,7 @@ export const Tree = ({ data, size, colorSetter }: ChartParams) => {
     treeLayout.size([2 * Math.PI, treeSize]);
     const hierarchy = createColorfulHierarchy(treeLayout, data, colorSetter);
 
-    setStartPosition(nodesRef.current, `translate(${centering},${centering})`);
-    setStartPosition(linesRef.current, `translate(${centering},${centering})`);
+    setStartPosition(`translate(${centering},${centering})`);
     const svg = d3.select(svgRef.current);
     svg.attr('height', size);
     svg.attr('viewBox', [0, 0, size, size]);
@@ -277,7 +274,7 @@ export const Tree = ({ data, size, colorSetter }: ChartParams) => {
     return maxLabelLength;
   };
 
-  const setLayoutRadial = () => {
+  const setRadialLayout = () => {
     const treeLayout = d3.tree<Data>();
     const maxLabelLength = initializeRadial(treeLayout, false);
 
@@ -297,24 +294,34 @@ export const Tree = ({ data, size, colorSetter }: ChartParams) => {
     centerRadial(treeLayout, centering, treeSize);
   };
 
+  const toggleCluster = () => {
+    if (layout?.cluster) {
+      layout?.type === 'tidy' ? setTreeLayout() : setRadialLayout();
+    } else {
+      layout?.type === 'tidy' ? setTreeLayoutCluster() : setRadialCluster();
+    }
+  };
+
   return (
     <>
       <div className="settings">
-        <button className={layout?.type === 'tidy' ? 'active' : ''} onClick={() => setTreeLayout()}>
+        <button
+          className={layout?.type === 'tidy' ? 'active' : ''}
+          onClick={() => (layout.cluster ? setTreeLayoutCluster() : setTreeLayout())}
+        >
           layout Tree
         </button>
+        {' | '}
         <button
           className={layout?.type === 'radial' ? 'active' : ''}
-          onClick={() => setLayoutRadial()}
+          onClick={() => (layout.cluster ? setRadialCluster() : setRadialLayout())}
         >
           layout Radial
         </button>
+        {' | '}
         <div>
-          <button
-            className={layout?.cluster ? 'active' : ''}
-            onClick={() => (layout?.type === 'tidy' ? setTreeLayoutCluster() : setRadialCluster())}
-          >
-            layout Cluster
+          <button className={layout?.cluster ? 'active' : ''} onClick={() => toggleCluster()}>
+            Toggle Cluster {layout?.cluster ? 'off' : 'on'}
           </button>
         </div>
       </div>
