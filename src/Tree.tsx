@@ -1,7 +1,9 @@
 import * as d3 from 'd3';
 import './tree.css';
 import { useLayoutEffect, useRef, useState } from 'react';
-import { addColor as createColorfulHierarchy, brighter, Data } from './util';
+import { Data, getDiscreteColors } from './util';
+
+type PointNode = d3.HierarchyPointNode<Data>;
 
 interface LayoutT {
   type: 'tidy' | 'radial';
@@ -9,10 +11,8 @@ interface LayoutT {
 }
 
 interface GraphLayout {
-  transform: (d: d3.HierarchyPointNode<Data>) => string;
-  link:
-    | d3.Link<unknown, unknown, d3.HierarchyPointNode<Data>>
-    | d3.LinkRadial<unknown, unknown, d3.HierarchyPointNode<Data>>;
+  transform: (d: PointNode) => string;
+  link: d3.Link<unknown, unknown, PointNode> | d3.LinkRadial<unknown, unknown, PointNode>;
 }
 
 const MARGIN = 11;
@@ -21,10 +21,32 @@ const FONTSIZE = 10;
 const FONTCOLOR = '#eee';
 const ANIMATION_TIMER = 1000;
 
+export const brighter = (color) => d3.rgb(color).brighter(2).formatRgb();
+
+const createColorfulHierarchy = (
+  treeLayout: d3.TreeLayout<Data> | d3.ClusterLayout<Data>,
+  data: Data
+) => {
+  const colorSetter = getDiscreteColors(data.children.length + 1);
+
+  const hierarchy = treeLayout(d3.hierarchy(data)).sort((a, b) =>
+    d3.descending(a.height, b.height)
+  );
+
+  const setBranchColor = (d: d3.HierarchyPointNode<Data>, branchColor: string) => {
+    d.data.color = branchColor;
+    if (!d.children) return;
+    d.children.forEach((c) => setBranchColor(c, branchColor));
+  };
+
+  hierarchy.children.forEach((d) => setBranchColor(d, colorSetter(d.data.name)));
+  return hierarchy;
+};
+
 const tidyTree: GraphLayout = {
   transform: (d) => `translate(${d.y},${d.x})`,
   link: d3
-    .link<unknown, d3.HierarchyPointNode<Data>>(d3.curveBumpX)
+    .link<unknown, PointNode>(d3.curveBumpX)
     .x((d) => d.y)
     .y((d) => d.x)
 };
@@ -32,7 +54,7 @@ const tidyTree: GraphLayout = {
 const radialTree: GraphLayout = {
   transform: (d) => `rotate(${(d.x * 180) / Math.PI - 90}) translate(${d.y},0)`,
   link: d3
-    .linkRadial<unknown, d3.HierarchyPointNode<Data>>()
+    .linkRadial<unknown, PointNode>()
     .angle((d) => d.x)
     .radius((d) => d.y)
 };
@@ -46,11 +68,11 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
   const [labelLength, setLabelLength] = useState(60);
 
   useLayoutEffect(() => {
-    // setLayoutRadial();
-    setTreeLayout();
+    setLayoutRadial();
+    // setTreeLayout();
   }, []);
 
-  const createNodes = (hierarchy: d3.HierarchyPointNode<Data>) => {
+  const createNodes = (hierarchy: PointNode) => {
     // we want to set start position, same as nodes
     d3.select(linesRef.current)
       .selectAll('path')
@@ -96,8 +118,8 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
     return longestLabel.reduce((a, b) => Math.max(a, b));
   };
 
-  const setTreeNodes = (tree: GraphLayout, root: d3.HierarchyPointNode<Data>) => {
-    const hoverEffect = (a: d3.HierarchyPointNode<Data>[], type: string) => {
+  const setTreeNodes = (tree: GraphLayout, root: PointNode) => {
+    const hoverEffect = (a: PointNode[], type: string) => {
       if (type === 'mouseenter') {
         const activeNodes = nodes.filter((n) => a.indexOf(n) > -1);
         activeNodes
@@ -111,8 +133,8 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
         nodes
           .transition()
           .duration(150)
-          .attr('fill', (d: d3.HierarchyPointNode<Data>) => d.data.color)
-          .attr('stroke', (d: d3.HierarchyPointNode<Data>) => d.data.color);
+          .attr('fill', (d: PointNode) => d.data.color)
+          .attr('stroke', (d: PointNode) => d.data.color);
         nodes.selectChild('text').attr('stroke', 'none');
         links
           .transition()
@@ -136,12 +158,10 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
       .selectAll('g')
       .data(() => root.descendants())
       .join('g')
-      .attr('fill', (d: d3.HierarchyPointNode<Data>) => d.data.color)
-      .attr('stroke', (d: d3.HierarchyPointNode<Data>) => d.data.color);
+      .attr('fill', (d: PointNode) => d.data.color)
+      .attr('stroke', (d: PointNode) => d.data.color);
 
-    nodes
-      .selectAll('circle')
-      .attr('fill', (d: d3.HierarchyPointNode<Data>) => (d.children ? 'inherit' : 'none'));
+    nodes.selectAll('circle').attr('fill', (d: PointNode) => (d.children ? 'inherit' : 'none'));
 
     nodes
       .transition()
@@ -182,32 +202,31 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
     let nodeLength = labelLength;
     if (!layout) {
       nodeLength = createNodes(hierarchy);
+      setLabelLength(nodeLength);
     }
-
     // recalculating nodeSize so that the nodes are not pushed outside view
     treeLayout.nodeSize([MARGIN, size / hierarchy.height - nodeLength / 2])(hierarchy);
+
     // Center the tree
-    // if the tree is left/right (it is), x is used to calculate height
-    let x0 = size;
-    let x1 = -size;
+    let right = size;
+    let left = -size;
     hierarchy.each((d) => {
-      if (d.x > x1) x1 = d.x;
-      if (d.x < x0) x0 = d.x;
+      if (d.x > left) left = d.x;
+      if (d.x < right) right = d.x;
     });
 
     const rootElement = d3.select(nodesRef.current).selectChild().node() as SVGGraphicsElement;
     // its better to adjust position with translate then changing the viewport
     setStartPosition(
       `translate(${Math.ceil(rootElement?.getBBox()?.width ?? nodeLength + MARGIN)},${
-        -x0 + MARGIN
+        -right + MARGIN
       })`
     );
     // We let tree height be dynamic to keep the margins and size
-    const height = x1 - x0 + MARGIN * 2;
+    const height = left - right + MARGIN * 2;
     const svg = d3.select(svgRef.current);
     svg.attr('height', () => height);
     svg.attr('viewBox', () => [0, 0, size, height]);
-    setLabelLength(nodeLength);
     setLayout({ type: 'tidy', cluster: isCluster });
 
     setTreeNodes(tidyTree, hierarchy);
@@ -218,27 +237,27 @@ export const Tree = ({ data, size }: { data: Data; size: number }) => {
   const setLayoutRadial = (isCluster = false) => {
     const treeFn = isCluster ? d3.cluster : d3.tree;
 
-    const treeLayout = treeFn<Data>();
+    const treeLayout = treeFn<Data>().separation(
+      (a, b) => (a.parent == b.parent ? 1 : 2) / a.depth + 1
+    );
     let hierarchy = treeLayout(d3.hierarchy(data));
-    let maxLabelLength = labelLength;
 
+    let maxLabelLength = labelLength;
     if (!layout) {
       // we dont want long labels to get pushed outside the viewbox,
       // so we need to recalculate size and position after creating the label
       maxLabelLength = createNodes(hierarchy);
+      setLabelLength(maxLabelLength);
     }
 
     const treeSize = isCluster ? (size - maxLabelLength * 2) / 2 : (size - maxLabelLength) / 2;
     const centering = isCluster ? size / 2 : (size + maxLabelLength) / 2;
 
-    treeLayout
-      .size([2 * Math.PI, treeSize])
-      .separation((a, b) => (a.parent == b.parent ? 1 : 2) / a.depth + 1);
+    treeLayout.size([2 * Math.PI, treeSize]);
 
     hierarchy = createColorfulHierarchy(treeLayout, data);
 
     setStartPosition(`translate(${centering},${centering})`);
-    setLabelLength(maxLabelLength);
     const svg = d3.select(svgRef.current);
     svg.attr('height', size);
     svg.attr('viewBox', [0, 0, size, size]);

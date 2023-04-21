@@ -1,27 +1,39 @@
 import { useMemo, useRef, useLayoutEffect } from 'react';
 import * as d3 from 'd3';
-import { Data, getColor, sortHeight } from './util';
+import { Data, getDiscreteColors } from './util';
+
+interface DataSun extends Data {
+  target?: DataNode;
+  current?: DataNode;
+}
+
+type DataNode = Partial<d3.HierarchyRectangularNode<DataSun>>;
+
+export const sortHeight = (root: d3.HierarchyNode<DataSun>) =>
+  root.sum((d) => d.value).sort((a, b) => b.value - a.value);
+
+const setBranchColor = (d: DataNode, branchColor: string) => {
+  // We increase brightness for items with children
+  const { l, c, h } = d3.lch(branchColor);
+  if (!d.children) {
+    d.data.color = d3.lch(l + 15, c, h).toString();
+    return;
+  }
+  // some color tweaking
+  d.data.color = d3.lch(l + 5, c - 10, h).toString();
+  d.children.forEach((c) => setBranchColor(c, branchColor));
+};
 
 export const Sunburst = ({ data, size }: { data: Data; size: number }) => {
   const ref = useRef<SVGSVGElement>(null);
 
   const radius = size / 6;
-  const colorSetter = getColor(data.children.length + 1);
+  const colorSetter = getDiscreteColors(data.children.length + 1);
 
-  const root: d3.HierarchyRectangularNode<Data> = useMemo(() => {
+  const root = useMemo(() => {
     const hirarchy = d3.hierarchy(data);
     sortHeight(hirarchy);
-    const partition = d3.partition<Data>().size([2 * Math.PI, hirarchy.height + 1])(hirarchy);
-
-    const setBranchColor = (d, branchColor) => {
-      const { l, c, h } = d3.lch(branchColor);
-      if (!d.children) {
-        d.data.color = d3.lch(l + 15, c, h);
-        return;
-      }
-      d.data.color = d3.lch(l + 5, c - 10, h);
-      d.children.forEach((c) => setBranchColor(c, branchColor));
-    };
+    const partition = d3.partition<DataSun>().size([2 * Math.PI, hirarchy.height + 1])(hirarchy);
 
     partition.children.forEach((d) => setBranchColor(d, colorSetter(d.data.name)));
     return partition.each((d) => (d.data.current = d));
@@ -29,7 +41,7 @@ export const Sunburst = ({ data, size }: { data: Data; size: number }) => {
 
   // for every datum, add a slice to the arc
   const arc = d3
-    .arc<d3.HierarchyRectangularNode<Data>>()
+    .arc<DataNode>()
     .startAngle((d) => d.x0)
     .endAngle((d) => d.x1)
     .padAngle((d) => Math.min((d.x1 - d.x0) / 2, 0.005)) // space between slices
@@ -38,40 +50,44 @@ export const Sunburst = ({ data, size }: { data: Data; size: number }) => {
     .outerRadius((d) => Math.max(d.y0 * radius, d.y1 * radius - 1)); // radius for outside
 
   // We only want to show 3 rings
-  const arcVisible = (d: d3.HierarchyRectangularNode<Data>) =>
-    d.y1 <= 3 && d.y0 >= 1 && d.x1 > d.x0;
+  const arcVisible = (d: DataNode) => d.y1 <= 3 && d.y0 >= 1 && d.x1 > d.x0;
 
   // Hide labels that doesn't fit
-  const labelVisible = (d: d3.HierarchyRectangularNode<Data>) =>
+  const labelVisible = (d: DataNode) =>
     d.y1 <= 3 && d.y0 >= 1 && (d.y1 - d.y0) * (d.x1 - d.x0) > 0.03;
 
-  function labelTransform(d) {
+  // center label text
+  const labelTransform = (d: DataNode) => {
     const x = (((d.x0 + d.x1) / 2) * 180) / Math.PI; // 180
     const y = ((d.y0 + d.y1) / 2) * radius; // translate 80, rotate 180
 
     // clockwise, distance, spin
     return `rotate(${x - 90}) translate(${y},0) rotate(${x < 180 ? 0 : 180})`;
-  }
+  };
+
+  const nodeData: DataNode[] = root.descendants().slice(1);
 
   useLayoutEffect(() => {
-    const g = d3.select(ref.current).attr('transform', `translate(${size / 2},${size / 2})`);
+    const container = d3
+      .select(ref.current)
+      .attr('transform', `translate(${size / 2},${size / 2})`);
 
-    const path = g
+    const slice = container
       .append('g')
       .selectAll('path')
-      .data(root.descendants().slice(1))
+      .data(nodeData)
       .join('path')
       .attr('fill', (d) => d.data.color)
       .attr('fill-opacity', (d) => (arcVisible(d.data.current) ? 1 : 0))
       .attr('pointer-events', (d) => (arcVisible(d.data.current) ? 'auto' : 'none'))
       .attr('d', (d) => arc(d.data.current));
 
-    path
+    slice
       .filter((d) => Boolean(d.children))
       .style('cursor', 'pointer')
-      .on('click', (e, p) => clicked(p, parent, g, path, label));
+      .on('click', (e, s) => clicked(s, center, container, slice, label));
 
-    const label = g
+    const label = container
       .append('g')
       .attr('pointer-events', 'none')
       .attr('text-anchor', 'middle')
@@ -86,31 +102,39 @@ export const Sunburst = ({ data, size }: { data: Data; size: number }) => {
       .attr('transform', (d) => labelTransform(d.data.current))
       .text((d) => d.data.name);
 
-    g.append('text')
+    container
+      .append('text')
       .text(root.data.name)
       .attr('text-anchor', 'middle')
       .attr('font-size', '18px')
       .attr('fill', '#ccc');
 
-    const parent = g
+    const center = container
       .append('circle')
       .datum(root)
       .attr('r', radius)
+      .attr('class', 'parent')
       .attr('fill', 'none')
       .attr('pointer-events', 'all')
       .attr('cursor', (d) => (d.depth > 0 ? 'pointer' : 'default'))
-      .on('click', (_, p) => clicked(p, parent, g, path, label));
+      .on('click', (_, c) => clicked(c, center, container, slice, label));
 
     return () => {
       ref.current.innerHTML = '';
     };
   }, []);
 
-  function clicked(p, parent, g, path, label) {
+  function clicked(
+    p: DataNode,
+    parent: d3.Selection<SVGCircleElement, DataNode, null, DataNode>,
+    container: d3.Selection<SVGSVGElement, DataNode, null, DataNode>,
+    slice: d3.Selection<d3.BaseType, DataNode, SVGGElement, DataNode>,
+    label: d3.Selection<d3.BaseType, DataNode, SVGGElement, DataNode>
+  ) {
     // p is the clicked element
     // parent of the clicked node should be center
     parent.datum(p?.parent || root);
-    const text = g.selectChild('text').attr('opacity', 0);
+    const text = container.selectChild('text').attr('opacity', 0);
     text
       .text(() => {
         return `${p
@@ -137,8 +161,8 @@ export const Sunburst = ({ data, size }: { data: Data; size: number }) => {
         })
     );
 
-    const t = g.transition().duration(750);
-    path
+    const t = container.transition().duration(750);
+    slice
       .transition(t)
       .tween('animated-slices', (d) => {
         const i = d3.interpolate(d.data.current, d.data.target);
