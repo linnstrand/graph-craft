@@ -66,8 +66,8 @@ export const Tree = ({ data, size, colorSetter }: ChartParams) => {
   };
 
   useLayoutEffect(() => {
-    // setLayoutRadial();
-    setTreeLayout();
+    setLayoutRadial();
+    // setTreeLayout();
   }, []);
 
   const createNodes = (hierarchy: PointNode) => {
@@ -227,13 +227,9 @@ export const Tree = ({ data, size, colorSetter }: ChartParams) => {
       nodeLength = createNodes(hierarchy);
       setLabelLength(nodeLength);
     }
-
-    // Center the tree
     centerTree(hierarchy, treeLayout);
     setLayout({ type: 'tidy', cluster: false });
-
     setTreeNodes(tidyTree, hierarchy);
-
     return hierarchy;
   };
 
@@ -242,57 +238,57 @@ export const Tree = ({ data, size, colorSetter }: ChartParams) => {
     const hierarchy = createColorfulHierarchy(treeLayout, data);
 
     centerTree(hierarchy, treeLayout);
-
     setLayout({ type: 'tidy', cluster: true });
-
     setTreeNodes(tidyTree, hierarchy);
   };
 
-  const setLayoutRadial = (isCluster = false) => {
-    const treeLayout = d3
-      .tree<Data>()
-      .separation((a, b) => (a.parent == b.parent ? 1 : 2) / a.depth + 1);
-    let hierarchy = treeLayout(d3.hierarchy(data));
-
-    let maxLabelLength = labelLength;
-    if (!layout) {
-      // we dont want long labels to get pushed outside the viewbox,
-      // so we need to recalculate size and position after creating the label
-      maxLabelLength = createNodes(hierarchy);
-      setLabelLength(maxLabelLength);
-    }
-
-    const treeSize = (size - maxLabelLength) / 2;
-    const centering = (size + maxLabelLength) / 2;
-
-    treeLayout.size([2 * Math.PI, treeSize]);
-
-    hierarchy = createColorfulHierarchy(treeLayout, data);
-
+  const centerRadial = (hierarchy, centering) => {
     setStartPosition(`translate(${centering},${centering})`);
     const svg = d3.select(svgRef.current);
     svg.attr('height', size);
     svg.attr('viewBox', [0, 0, size, size]);
     setTreeNodes(radialTree, hierarchy);
-    setLayout({ type: 'radial', cluster: isCluster });
   };
 
-  const setCluster = (isCluster = false) => {
-    const treeLayout = d3
-      .cluster<Data>()
-      .separation((a, b) => (a.parent == b.parent ? 1 : 2) / a.depth + 1);
-    let hierarchy = treeLayout(d3.hierarchy(data));
+  const initializeRadial = (treeLayout) => {
+    treeLayout.separation((a, b) => (a.parent == b.parent ? 1 : 2) / a.depth + 1);
 
+    let maxLabelLength = labelLength;
+    if (!layout) {
+      // we dont want long labels to get pushed outside the viewbox,
+      // so we need to recalculate size and position after creating the label
+      maxLabelLength = createNodes(treeLayout(d3.hierarchy(data)));
+      setLabelLength(maxLabelLength);
+    }
+    return maxLabelLength;
+  };
+
+  const setLayoutRadial = () => {
+    const treeLayout = d3.tree<Data>();
+
+    const maxLabelLength = initializeRadial(treeLayout);
+
+    const treeSize = (size - maxLabelLength) / 2;
+    const centering = (size + maxLabelLength) / 2;
+
+    treeLayout.size([2 * Math.PI, treeSize]);
+    const hierarchy = createColorfulHierarchy(treeLayout, data);
+    centerRadial(hierarchy, centering);
+    setLayout({ type: 'radial', cluster: false });
+  };
+
+  const setRadialCluster = () => {
+    const treeLayout = d3.cluster<Data>();
+
+    const labelLength = initializeRadial(treeLayout);
     const treeSize = (size - labelLength * 2) / 2;
     const centering = size / 2;
 
     treeLayout.size([2 * Math.PI, treeSize]);
-
-    hierarchy = createColorfulHierarchy(treeLayout, data);
-
-    setStartPosition(`translate(${centering},${centering})`);
+    const hierarchy = createColorfulHierarchy(treeLayout, data);
+    centerRadial(hierarchy, centering);
     setTreeNodes(radialTree, hierarchy);
-    setLayout({ type: 'radial', cluster: isCluster });
+    setLayout({ type: 'radial', cluster: true });
   };
 
   return (
@@ -310,9 +306,7 @@ export const Tree = ({ data, size, colorSetter }: ChartParams) => {
         <div>
           <button
             className={layout?.cluster ? 'active' : ''}
-            onClick={() =>
-              layout?.type === 'tidy' ? setTreeLayoutCluster(true) : setCluster(true)
-            }
+            onClick={() => (layout?.type === 'tidy' ? setTreeLayoutCluster() : setRadialCluster())}
           >
             layout Cluster
           </button>
