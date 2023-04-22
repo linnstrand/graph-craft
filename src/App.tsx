@@ -4,7 +4,7 @@ import { Sunburst } from './Sunburst';
 import { useState } from 'react';
 import { NavBar } from './Navbar';
 import './navbar.css';
-import { getDiscreteColors } from './util';
+import { BaseData, Data, getDiscreteColors } from './util';
 
 function App() {
   return (
@@ -16,10 +16,14 @@ function App() {
 
 export default App;
 
+const processData = ({ children, value = 0, ...rest }: BaseData): Data => {
+  return { children: children?.map((c) => processData(c)), value, color: '#eee', ...rest } as Data;
+};
+
 const Container = () => {
-  const [graph, setGraph] = useState('tree');
-  const data = { ...testdata };
-  const colorSetter = getDiscreteColors(data.children.length + 1);
+  const [graph, setGraph] = useState('sunburst');
+  const data = processData(testdata);
+  const colorSetter = getDiscreteColors(data.children?.length || 0 + 1);
 
   return (
     <>

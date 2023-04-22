@@ -3,7 +3,7 @@ import * as d3 from 'd3';
 export interface BaseData {
   name: string;
   value?: number;
-  children?: BaseData;
+  children?: BaseData[];
 }
 
 export interface Data {
@@ -14,7 +14,7 @@ export interface Data {
 }
 
 export interface ChartParams {
-  data: BaseData;
+  data: Data;
   size: number;
   colorSetter: d3.ScaleOrdinal<string, string, never>;
 }

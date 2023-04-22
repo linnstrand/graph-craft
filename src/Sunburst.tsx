@@ -1,15 +1,21 @@
 import { useMemo, useRef, useLayoutEffect } from 'react';
 import * as d3 from 'd3';
-import { BaseData, ChartParams, Data } from './util';
+import { ChartParams, Data } from './util';
 
-interface DataSun extends Data {
-  target: DataNode;
+interface RectanglePoints {
+  x0: number;
+  x1: number;
+  y0: number;
+  y1: number;
+}
+export interface DataSun extends Data {
+  target: RectanglePoints;
   current: DataNode;
 }
 
 type DataNode = d3.HierarchyRectangularNode<DataSun>;
 
-export const sortHeight = (root: d3.HierarchyNode<BaseData>) =>
+export const sortHeight = (root: d3.HierarchyNode<Data>) =>
   root.sum((d) => d.value || 0).sort((a, b) => (b.value || 0) - (a.value || 0));
 
 const setBranchColor = (d: d3.HierarchyRectangularNode<Data>, branchColor: string) => {
@@ -26,13 +32,12 @@ const setBranchColor = (d: d3.HierarchyRectangularNode<Data>, branchColor: strin
 
 export const Sunburst = ({ data, size, colorSetter }: ChartParams) => {
   const ref = useRef<SVGSVGElement>(null);
-
   const radius = size / 6;
 
   const root: DataNode = useMemo(() => {
     const hirarchy = d3.hierarchy(data);
     sortHeight(hirarchy);
-    const partition = d3.partition<BaseData>().size([2 * Math.PI, hirarchy.height + 1])(
+    const partition = d3.partition<Data>().size([2 * Math.PI, hirarchy.height + 1])(
       hirarchy
     ) as DataNode;
 
@@ -51,10 +56,10 @@ export const Sunburst = ({ data, size, colorSetter }: ChartParams) => {
     .outerRadius((d) => Math.max(d.y0 * radius, d.y1 * radius - 1)); // radius for outside
 
   // We only want to show 3 rings
-  const arcVisible = (d?: DataNode) => (d ? d.y1 <= 3 && d.y0 >= 1 && d.x1 > d.x0 : false);
+  const arcVisible = (d: RectanglePoints) => (d ? d.y1 <= 3 && d.y0 >= 1 && d.x1 > d.x0 : false);
 
   // Hide labels that doesn't fit
-  const labelVisible = (d: DataNode) =>
+  const labelVisible = (d: RectanglePoints) =>
     d.y1 <= 3 && d.y0 >= 1 && (d.y1 - d.y0) * (d.x1 - d.x0) > 0.03;
 
   // center label text
@@ -170,16 +175,15 @@ export const Sunburst = ({ data, size, colorSetter }: ChartParams) => {
     );
 
     const t = container.transition().duration(750);
-    const c = slices
+    slices
       .transition(t)
       .tween('animated-slices', (d) => {
         const i = d3.interpolate(d.data.current, d.data.target);
-        return (time) => (d.data.current = i(time));
+        return (time) => (d.data.current = { ...d.data.current, ...i(time) });
       })
       .attr('fill-opacity', (d) => (arcVisible(d.data.target) ? 1 : 0))
-      .attr('pointer-events', (d) => (arcVisible(d.data.target) ? 'auto' : 'none'));
-
-    c.attrTween('d', (d) => () => setArc(d.data.current) || '');
+      .attr('pointer-events', (d) => (arcVisible(d.data.target) ? 'auto' : 'none'))
+      .attrTween('d', (d) => () => setArc(d.data.current) || '');
 
     labels
       .transition(t)
