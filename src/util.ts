@@ -6,18 +6,24 @@ export interface BaseData {
   children?: BaseData[];
 }
 
-export interface Data {
-  name: string;
+export interface Data extends BaseData {
   value: number;
   children?: Data[];
   color: string;
 }
 
-export interface ChartParams {
+export interface GraphParams {
   data: Data;
   size: number;
   colorSetter: d3.ScaleOrdinal<string, string, never>;
 }
+
+export const sortByValue = (root: d3.HierarchyNode<Data>) =>
+  root.sum((d) => d.value || 0).sort((a, b) => (b.value || 0) - (a.value || 0));
+
+// height is the node distance from root
+export const sortByHeight = (root: d3.HierarchyNode<Data>) =>
+  root.sort((a, b) => d3.descending(a.height, b.height));
 
 // COLOR!
 // ordinal scales have a discrete domain and range

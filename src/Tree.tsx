@@ -1,7 +1,7 @@
 import * as d3 from 'd3';
 import './tree.css';
 import { useLayoutEffect, useRef, useState } from 'react';
-import { ChartParams, Data } from './util';
+import { GraphParams, Data, sortByHeight } from './util';
 
 type PointNode = d3.HierarchyPointNode<Data>;
 
@@ -21,8 +21,6 @@ const FONTSIZE = 10;
 const FONTCOLOR = '#eee';
 const ANIMATION_TIMER = 1000;
 
-export const brighter = (color: string) => d3.rgb(color).brighter(2).formatRgb();
-
 const tidyTree: GraphLayout = {
   transform: (d) => `translate(${d.y},${d.x})`,
   link: d3
@@ -39,26 +37,7 @@ const radialTree: GraphLayout = {
     .radius((d) => d.y)
 };
 
-const createColorfulHierarchy = (
-  treeLayout: d3.TreeLayout<Data> | d3.ClusterLayout<Data>,
-  data: Data,
-  colorSetter: d3.ScaleOrdinal<string, string, never>
-) => {
-  const hierarchy = treeLayout(d3.hierarchy(data)).sort((a, b) =>
-    d3.descending(a.height, b.height)
-  );
-
-  const setBranchColor = (d: d3.HierarchyPointNode<Data>, branchColor: string) => {
-    d.data.color = branchColor;
-    if (!d.children) return;
-    d.children.forEach((c) => setBranchColor(c, branchColor));
-  };
-
-  hierarchy.children?.forEach((d) => setBranchColor(d, colorSetter(d.data.name)));
-  return hierarchy;
-};
-
-export const Tree = ({ data, size, colorSetter }: ChartParams) => {
+export const Tree = ({ data, size, colorSetter }: GraphParams) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const nodesRef = useRef<SVGSVGElement>(null);
   const linesRef = useRef<SVGSVGElement>(null);
@@ -341,4 +320,24 @@ export const Tree = ({ data, size, colorSetter }: ChartParams) => {
       </div>
     </>
   );
+};
+
+const brighter = (color: string) => d3.rgb(color).brighter(2).formatRgb();
+
+const createColorfulHierarchy = (
+  treeLayout: d3.TreeLayout<Data> | d3.ClusterLayout<Data>,
+  data: Data,
+  colorSetter: d3.ScaleOrdinal<string, string, never>
+) => {
+  const hierarchy = treeLayout(d3.hierarchy(data));
+  sortByHeight(hierarchy);
+
+  const setBranchColor = (d: d3.HierarchyPointNode<Data>, branchColor: string) => {
+    d.data.color = branchColor;
+    if (!d.children) return;
+    d.children.forEach((c) => setBranchColor(c, branchColor));
+  };
+
+  hierarchy.children?.forEach((d) => setBranchColor(d, colorSetter(d.data.name)));
+  return hierarchy;
 };

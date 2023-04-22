@@ -1,6 +1,6 @@
 import { useMemo, useRef, useLayoutEffect } from 'react';
 import * as d3 from 'd3';
-import { ChartParams, Data } from './util';
+import { GraphParams, Data, sortByValue } from './util';
 
 interface RectanglePoints {
   x0: number;
@@ -8,38 +8,23 @@ interface RectanglePoints {
   y0: number;
   y1: number;
 }
-export interface DataSun extends Data {
+interface DataSun extends Data {
   target: RectanglePoints;
-  current: DataNode;
+  current: DataPartition;
 }
 
-type DataNode = d3.HierarchyRectangularNode<DataSun>;
+type DataPartition = d3.HierarchyRectangularNode<DataSun>;
 
-export const sortHeight = (root: d3.HierarchyNode<Data>) =>
-  root.sum((d) => d.value || 0).sort((a, b) => (b.value || 0) - (a.value || 0));
-
-const setBranchColor = (d: d3.HierarchyRectangularNode<Data>, branchColor: string) => {
-  // We increase brightness for items with children
-  const { l, c, h } = d3.lch(branchColor);
-  if (!d.children) {
-    d.data.color = d3.lch(l + 15, c, h).toString();
-    return;
-  }
-  // some color tweaking
-  d.data.color = d3.lch(l + 5, c - 10, h).toString();
-  d.children.forEach((c) => setBranchColor(c, branchColor));
-};
-
-export const Sunburst = ({ data, size, colorSetter }: ChartParams) => {
+export const Sunburst = ({ data, size, colorSetter }: GraphParams) => {
   const ref = useRef<SVGSVGElement>(null);
   const radius = size / 6;
 
-  const root: DataNode = useMemo(() => {
+  const root: DataPartition = useMemo(() => {
     const hirarchy = d3.hierarchy(data);
-    sortHeight(hirarchy);
+    sortByValue(hirarchy);
     const partition = d3.partition<Data>().size([2 * Math.PI, hirarchy.height + 1])(
       hirarchy
-    ) as DataNode;
+    ) as DataPartition;
 
     partition.children?.forEach((d) => setBranchColor(d, colorSetter(d.data.name)));
     return partition.each((d) => (d.data.current = d));
@@ -47,7 +32,7 @@ export const Sunburst = ({ data, size, colorSetter }: ChartParams) => {
 
   // for every datum, add a slice to the arc
   const setArc = d3
-    .arc<DataNode>()
+    .arc<DataPartition>()
     .startAngle((d) => d.x0)
     .endAngle((d) => d.x1)
     .padAngle((d) => Math.min((d.x1 - d.x0) / 2, 0.005)) // space between slices
@@ -63,7 +48,7 @@ export const Sunburst = ({ data, size, colorSetter }: ChartParams) => {
     d.y1 <= 3 && d.y0 >= 1 && (d.y1 - d.y0) * (d.x1 - d.x0) > 0.03;
 
   // center label text
-  const labelTransform = (d: DataNode) => {
+  const labelTransform = (d: DataPartition) => {
     const x = (((d.x0 + d.x1) / 2) * 180) / Math.PI; // 180
     const y = ((d.y0 + d.y1) / 2) * radius; // translate 80, rotate 180
 
@@ -80,7 +65,7 @@ export const Sunburst = ({ data, size, colorSetter }: ChartParams) => {
 
     const slices = container
       .append('g')
-      .selectAll<SVGPathElement, DataNode>('path')
+      .selectAll<SVGPathElement, DataPartition>('path')
       .data(root.descendants().slice(1))
       .join('path')
       .attr('fill', (d) => d.data.color)
@@ -98,7 +83,7 @@ export const Sunburst = ({ data, size, colorSetter }: ChartParams) => {
       .attr('pointer-events', 'none')
       .attr('text-anchor', 'middle')
       .style('user-select', 'none')
-      .selectAll<SVGTextElement, DataNode>('text')
+      .selectAll<SVGTextElement, DataPartition>('text')
       .data(root.descendants().slice(1))
       .join('text')
       .attr('font-size', (d) => {
@@ -115,7 +100,7 @@ export const Sunburst = ({ data, size, colorSetter }: ChartParams) => {
       .attr('font-size', '18px')
       .attr('fill', '#ccc');
 
-    const center = container.append<SVGCircleElement>('circle').datum<DataNode>(root);
+    const center = container.append<SVGCircleElement>('circle').datum<DataPartition>(root);
     center
       .attr('r', radius)
       .attr('class', 'parent')
@@ -133,19 +118,19 @@ export const Sunburst = ({ data, size, colorSetter }: ChartParams) => {
   /**
    *
    * @param p The clicked element
-   * @param parent Parent of the clicked element, that will be set to center
+   * @param center Center circle
    * @param container To update the animations
    * @param slices Change the position of slices, their visibility and animate them
    * @param labels  Change the position of labels, their visibility and animate them
    */
   function clicked(
-    p: DataNode,
-    parent: d3.Selection<SVGCircleElement, DataNode, null, undefined>,
+    p: DataPartition,
+    center: d3.Selection<SVGCircleElement, DataPartition, null, undefined>,
     container: d3.Selection<d3.BaseType, unknown, null, unknown>,
-    slices: d3.Selection<SVGPathElement, DataNode, SVGGElement, DataNode>,
-    labels: d3.Selection<SVGTextElement, DataNode, SVGGElement, DataNode>
+    slices: d3.Selection<SVGPathElement, DataPartition, SVGGElement, DataPartition>,
+    labels: d3.Selection<SVGTextElement, DataPartition, SVGGElement, DataPartition>
   ) {
-    parent.datum(p?.parent || root);
+    center.datum(p?.parent || root);
     const text = container.selectChild('text').attr('opacity', 0);
     text
       .text(() => {
@@ -204,4 +189,16 @@ export const Sunburst = ({ data, size, colorSetter }: ChartParams) => {
       </div>
     </>
   );
+};
+
+const setBranchColor = (d: d3.HierarchyRectangularNode<Data>, branchColor: string) => {
+  // We increase brightness for items with children
+  const { l, c, h } = d3.lch(branchColor);
+  if (!d.children) {
+    d.data.color = d3.lch(l + 15, c, h).toString();
+    return;
+  }
+  // some color tweaking
+  d.data.color = d3.lch(l + 5, c - 10, h).toString();
+  d.children.forEach((c) => setBranchColor(c, branchColor));
 };
