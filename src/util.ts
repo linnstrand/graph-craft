@@ -1,14 +1,20 @@
 import * as d3 from 'd3';
 
-export interface Data {
+export interface BaseData {
   name: string;
   value?: number;
+  children?: BaseData;
+}
+
+export interface Data {
+  name: string;
+  value: number;
   children?: Data[];
-  color?: string;
+  color: string;
 }
 
 export interface ChartParams {
-  data: Data;
+  data: BaseData;
   size: number;
   colorSetter: d3.ScaleOrdinal<string, string, never>;
 }

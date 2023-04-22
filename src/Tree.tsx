@@ -21,7 +21,7 @@ const FONTSIZE = 10;
 const FONTCOLOR = '#eee';
 const ANIMATION_TIMER = 1000;
 
-export const brighter = (color) => d3.rgb(color).brighter(2).formatRgb();
+export const brighter = (color: string) => d3.rgb(color).brighter(2).formatRgb();
 
 const tidyTree: GraphLayout = {
   transform: (d) => `translate(${d.y},${d.x})`,
@@ -54,7 +54,7 @@ const createColorfulHierarchy = (
     d.children.forEach((c) => setBranchColor(c, branchColor));
   };
 
-  hierarchy.children.forEach((d) => setBranchColor(d, colorSetter(d.data.name)));
+  hierarchy.children?.forEach((d) => setBranchColor(d, colorSetter(d.data.name)));
   return hierarchy;
 };
 
@@ -63,15 +63,18 @@ export const Tree = ({ data, size, colorSetter }: ChartParams) => {
   const nodesRef = useRef<SVGSVGElement>(null);
   const linesRef = useRef<SVGSVGElement>(null);
 
-  const [layout, setLayout] = useState<LayoutT>(null);
+  const [layout, setLayout] = useState<LayoutT | null>(null);
   const [labelLength, setLabelLength] = useState(60);
 
   useLayoutEffect(() => {
     setRadialLayout();
   }, []);
 
-  const createNodes = (hierarchy: PointNode) => {
+  const createNodes = (hierarchy: PointNode): number => {
     // we want to set start position, same as nodes
+    if (!nodesRef.current) {
+      return labelLength;
+    }
     d3.select(linesRef.current)
       .selectAll('path')
       .data(() => hierarchy.links())
@@ -90,7 +93,7 @@ export const Tree = ({ data, size, colorSetter }: ChartParams) => {
     // Start nodes invisible for nice fade in
     const nodes = d3
       .select(nodesRef.current)
-      .selectAll('g')
+      .selectAll<SVGAElement, PointNode>('g')
       .data(() => hierarchy.descendants())
       .join('g')
       .attr('transform', `translate(0, ${size / 2})`)
@@ -110,13 +113,15 @@ export const Tree = ({ data, size, colorSetter }: ChartParams) => {
       .text((d) => d.data.name);
 
     // make sure the labels are not pushed outside view
-    const longestLabel = nodes.nodes().map((a: SVGGraphicsElement) => {
-      return Math.ceil(a.getBBox().width);
+    const longestLabel = nodes.nodes().map((a) => {
+      return Math.ceil(a?.getBBox().width);
     });
     return longestLabel.reduce((a, b) => Math.max(a, b));
   };
 
   const setTreeNodes = (tree: GraphLayout, root: PointNode) => {
+    if (!linesRef.current || !nodesRef.current) return;
+
     const hoverEffect = (a: PointNode[], type: string) => {
       if (type === 'mouseenter') {
         const activeNodes = nodes.filter((n) => a.indexOf(n) > -1);
@@ -153,13 +158,15 @@ export const Tree = ({ data, size, colorSetter }: ChartParams) => {
 
     const nodes = d3
       .select(nodesRef.current)
-      .selectAll('g')
+      .selectAll<SVGSVGElement, PointNode>('g')
       .data(() => root.descendants())
       .join('g')
-      .attr('fill', (d: PointNode) => d.data.color)
-      .attr('stroke', (d: PointNode) => d.data.color);
+      .attr('fill', (d) => d.data.color)
+      .attr('stroke', (d) => d.data.color);
 
-    nodes.selectAll('circle').attr('fill', (d: PointNode) => (d.children ? 'inherit' : 'none'));
+    nodes
+      .selectAll<SVGSVGElement, PointNode>('circle')
+      .attr('fill', (d) => (d.children ? 'inherit' : 'none'));
 
     nodes
       .transition()
@@ -212,12 +219,12 @@ export const Tree = ({ data, size, colorSetter }: ChartParams) => {
 
     const rootElement = d3.select(nodesRef.current).selectChild().node() as SVGGraphicsElement;
     // its better to adjust position with translate then changing the viewport
-
     setStartPosition(
       `translate(${Math.ceil(rootElement?.getBBox()?.width ?? nodeLength + MARGIN)},${
         -right + MARGIN
       })`
     );
+
     // We let tree height be dynamic to keep the margins and size
     const height = left - right + MARGIN * 2;
     const svg = d3.select(svgRef.current);
@@ -233,13 +240,11 @@ export const Tree = ({ data, size, colorSetter }: ChartParams) => {
     // root height is the greatest distance from any descendant leaf.
     // node size here is distance between depths
     const treeLayout = d3.tree<Data>();
-
     centerTree(treeLayout, false);
   };
 
   const setTreeLayoutCluster = () => {
     const treeLayout = d3.cluster<Data>();
-
     centerTree(treeLayout, true);
   };
 
@@ -277,20 +282,16 @@ export const Tree = ({ data, size, colorSetter }: ChartParams) => {
   const setRadialLayout = () => {
     const treeLayout = d3.tree<Data>();
     const maxLabelLength = initializeRadial(treeLayout, false);
-
     const treeSize = (size - maxLabelLength) / 2;
     const centering = (size + maxLabelLength) / 2;
-
     centerRadial(treeLayout, centering, treeSize);
   };
 
   const setRadialCluster = () => {
     const treeLayout = d3.cluster<Data>();
-
     const labelLength = initializeRadial(treeLayout, true);
     const treeSize = (size - labelLength * 2) / 2;
     const centering = size / 2;
-
     centerRadial(treeLayout, centering, treeSize);
   };
 
@@ -307,14 +308,14 @@ export const Tree = ({ data, size, colorSetter }: ChartParams) => {
       <div className="settings">
         <button
           className={layout?.type === 'tidy' ? 'active' : ''}
-          onClick={() => (layout.cluster ? setTreeLayoutCluster() : setTreeLayout())}
+          onClick={() => (layout?.cluster ? setTreeLayoutCluster() : setTreeLayout())}
         >
           layout Tree
         </button>
         {' | '}
         <button
           className={layout?.type === 'radial' ? 'active' : ''}
-          onClick={() => (layout.cluster ? setRadialCluster() : setRadialLayout())}
+          onClick={() => (layout?.cluster ? setRadialCluster() : setRadialLayout())}
         >
           layout Radial
         </button>
